@@ -1,175 +1,361 @@
+<p align="center">
+  <img src="https://github.com/fervidos/TikTok-Account-Downloader/raw/main/assets/banner.png" alt="TikTok Account Downloader Banner" width="800"/>
+</p>
+
+<p align="center">
+  <a href="https://github.com/fervidos/TikTok-Account-Downloader/stargazers">
+    <img src="https://img.shields.io/github/stars/fervidos/TikTok-Account-Downloader?style=for-the-badge&color=ff0050"/>
+  </a>
+  <a href="https://github.com/fervidos/TikTok-Account-Downloader/forks">
+    <img src="https://img.shields.io/github/forks/fervidos/TikTok-Account-Downloader?style=for-the-badge&color=ff7300"/>
+  </a>
+  <a href="https://github.com/fervidos/TikTok-Account-Downloader/issues">
+    <img src="https://img.shields.io/github/issues/fervidos/TikTok-Account-Downloader?style=for-the-badge&color=00aaff"/>
+  </a>
+</p>
+
+<p align="center">
+  <img src="https://github.com/fervidos/TikTok-Account-Downloader/actions/workflows/python-package.yml/badge.svg"/>
+  <img src="https://img.shields.io/badge/python-3.10+-blue?style=for-the-badge&logo=python&logoColor=white"/>
+  <img src="https://img.shields.io/badge/license-MIT-green?style=for-the-badge"/>
+</p>
+
+---
+
 # TikTok Account Downloader
 
-[![Build](https://github.com/fervidos/TikTok-Account-Downloader/actions/workflows/python-package.yml/badge.svg)](https://github.com/fervidos/TikTok-Account-Downloader/actions)
-[![Python](https://img.shields.io/badge/python-3.10%2B-blue)](https://www.python.org/downloads/)
-[![License](https://img.shields.io/badge/license-MIT-green)](LICENSE)
+> **Archive entire TikTok profiles — including private, age-restricted, and locked content.**
 
-A simple tool that **scrapes a TikTok profile** and **downloads all videos** found on that profile.
+A powerful archiving tool built with **Playwright + yt-dlp** that automatically scrolls profiles, collects every video, and downloads them in the **highest available quality**.
 
-- Downloads the best-quality video + audio using **yt-dlp**
-- Uses **Playwright** to scan the profile page for TikTok post URLs
-- Supports **cookies** so it can download private / age-locked content
-- Optional **MongoDB caching** to avoid re-downloading the same videos
-- Includes a small **local web viewer** to browse downloaded videos
+Perfect for researchers, archivists, or anyone who wants to keep backups of TikTok accounts.
 
 ---
 
-## ✅ What this project does (in plain English)
+# Table of Contents
 
-1. You tell it a TikTok profile URL (e.g. `https://www.tiktok.com/@username`).
-2. It visits the profile page in a browser (Playwright) and finds all video post links.
-3. It hands those links to `yt-dlp` to download the video files.
-4. It saves videos into `downloads/_kept/` by default.
+- Features
+- Quick Start
+- Usage
+- Cookies (Private Content)
+- Local Video Browser
+- FAQ
+- Contributing
+- License
 
 ---
 
-## 🧩 How to run it (step-by-step)
+# Features
 
-### 1) Download the code
+**Full Profile Archiving**
+- Automatically scrolls TikTok profiles
+- Collects every video on the account
+
+**Best Quality Downloads**
+- Uses `yt-dlp`
+- Downloads **bestvideo + bestaudio**
+
+**Private / Restricted Content**
+- Supports cookies from browsers
+- Works with:
+  - private accounts
+  - friends-only videos
+  - age-restricted content
+
+**Smart Caching (Optional)**
+- MongoDB support
+- Skips already-downloaded videos
+
+**Built-in Video Viewer**
+- Local web interface for browsing downloaded videos
+
+**Safe Testing**
+- `--dry-run` preview mode
+- Download limits
+
+**Actively Maintained**
+- Uses Playwright to adapt to TikTok layout changes
+
+---
+
+# Quick Start (3 minutes)
+
+## 1. Clone the repository
 
 ```bash
 git clone https://github.com/fervidos/TikTok-Account-Downloader.git
 cd TikTok-Account-Downloader
 ```
 
-### 2) Install Python dependencies
+## 2. Create virtual environment
 
 ```bash
 python -m venv .venv
-# Windows
-.venv\Scripts\activate
-# macOS / Linux
-source .venv/bin/activate
+```
 
+Activate it:
+
+**Windows**
+
+```bash
+.venv\Scripts\activate
+```
+
+**Linux / macOS**
+
+```bash
+source .venv/bin/activate
+```
+
+## 3. Install dependencies
+
+```bash
 pip install -r requirements.txt
 ```
 
-### 3) Install the browser runtime Playwright needs
+## 4. Install Playwright browser
 
 ```bash
 python -m playwright install chromium
 ```
 
-> ✅ If you want Firefox or WebKit instead, run:
-> - `python -m playwright install firefox`
-> - `python -m playwright install webkit`
-
----
-
-## ▶️ Run the downloader (the simplest way)
+## 5. Run the downloader
 
 ```bash
 python -m tiktok_account_downloader.cli https://www.tiktok.com/@username
 ```
 
-### What is `-m tiktok_account_downloader.cli`?
+Or if installed as a package:
 
-`python -m <module>` tells Python to run a module as a script.
-
-- `tiktok_account_downloader.cli` is the file `src/tiktok_account_downloader/cli.py`.
-- The `cli.py` file contains the command-line interface (the part that reads flags and starts the download).
-
-> ✅ If you installed the package (`pip install -e .`), you can also run:
-> ```bash
+```bash
 tiktok-account-downloader https://www.tiktok.com/@username
-> ```
-
----
-
-## 🔧 Common options (flags)
-
-| Flag | What it does |
-|------|--------------|
-| `--dry-run` | Scan the profile but don’t download anything |
-| `--limit N` | Stop after finding N videos |
-| `--output <path>` | Save downloads to a custom folder |
-| `--cookies-file <path>` | Load cookies from a cookies.txt file |
-| `--browser <name>` | Load cookies from a local browser (chrome/firefox/edge/brave/opera) |
-| `--mongo-uri <uri>` | Enable MongoDB caching (skips already-downloaded videos) |
-
----
-
-## 🍪 Cookies (needed for private / restricted content)
-
-TikTok will block access to some videos unless you are logged in. This tool can use your browser cookies to make it look like you’re logged in.
-
-### Option A) Use a cookies file (recommended)
-
-1. Export cookies in **Netscape `cookies.txt`** format (browser extension or tool).
-2. Put the file at:
-   - `src/cookies.txt` (default)
-   - or use `--cookies-file path/to/cookies.txt`
-
-> Example template: `src/cookies.example.txt`
-
-### Option B) Load cookies from a browser you already use
-
-```bash
-python -m tiktok_account_downloader.cli --browser chrome https://www.tiktok.com/@username
 ```
 
-Supported browser names: `chrome`, `firefox`, `edge`, `brave`, `opera`.
+Videos will appear in:
 
----
-
-## 🧠 Optional: Cache downloaded videos with MongoDB
-
-If you run this tool repeatedly, MongoDB can keep track of what’s already downloaded so it doesn’t download the same video twice.
-
-1) Run MongoDB (local or cloud).
-2) Set `MONGO_URI` in your environment (or `.env` file):
-
-```bash
-set MONGO_URI="mongodb+srv://<user>:<pw>@<cluster>/tiktok_account_downloader"  # Windows
-export MONGO_URI="mongodb+srv://<user>:<pw>@<cluster>/tiktok_account_downloader"  # macOS/Linux
+```
+downloads/_kept/
 ```
 
-Then run the downloader as normal.
+Test without downloading:
+
+```bash
+--dry-run
+```
 
 ---
 
-## 🖥️ Browse downloaded videos (viewer)
+# Usage
 
-Use the built-in viewer to open a web page and play the downloaded files.
+View all options:
+
+```bash
+tiktok-account-downloader --help
+```
+
+## Popular Flags
+
+| Flag | Description |
+|-----|-------------|
+| `--dry-run` | Scan profile without downloading |
+| `--limit N` | Stop after N videos |
+| `--output DIR` | Custom download directory |
+| `--cookies-file FILE` | Use Netscape cookies file |
+| `--browser chrome` | Load cookies from browser |
+| `--mongo-uri URI` | Enable MongoDB caching |
+| `--headless false` | Show browser window |
+| `--slow-mo 300` | Delay actions (helps avoid rate limits) |
+
+Example:
+
+```bash
+tiktok-account-downloader https://www.tiktok.com/@privateacc \
+  --cookies-file cookies.txt \
+  --limit 200 \
+  --mongo-uri mongodb://localhost:27017/tiktok \
+  --output backups/privateacc
+```
+
+---
+
+# Cookies (Private / Restricted Videos)
+
+TikTok requires authentication for many accounts.
+
+## Option 1 — cookies.txt (recommended)
+
+1. Install a browser extension such as:
+   - Cookie Editor
+   - EditThisCookie
+
+2. Export cookies from:
+
+```
+https://www.tiktok.com
+```
+
+3. Save them as:
+
+```
+cookies.txt
+```
+
+4. Run:
+
+```bash
+tiktok-account-downloader --cookies-file cookies.txt https://www.tiktok.com/@username
+```
+
+Example template:
+
+```
+cookies.example.txt
+```
+
+---
+
+## Option 2 — Load directly from browser
+
+```bash
+tiktok-account-downloader --browser chrome https://www.tiktok.com/@username
+```
+
+Supported browsers:
+
+- Chrome
+- Firefox
+- Edge
+- Brave
+- Opera
+
+---
+
+# Local Video Browser
+
+After downloading videos you can launch a **simple web viewer**.
 
 ```bash
 python viewer.py
 ```
 
-Open in your browser:
+Open in browser:
 
 ```
 http://127.0.0.1:8000
 ```
 
-Default folder: `downloads/_kept/`
+Change the video directory:
 
-To change the folder:
+Linux / macOS:
 
 ```bash
-set TIKTOK_SCANNER_KEPT_DIR=path\to\videos     # Windows
-export TIKTOK_SCANNER_KEPT_DIR=path/to/videos      # macOS/Linux
+export TIKTOK_SCANNER_KEPT_DIR=/path/to/videos
+```
+
+Windows:
+
+```bash
+set TIKTOK_SCANNER_KEPT_DIR=C:\Videos
+```
+
+Then run again:
+
+```bash
 python viewer.py
 ```
 
 ---
 
-## 🧪 Development (edit the code)
+# FAQ
 
-Install the package in editable mode:
+### Videos are missing
+
+TikTok rate limits aggressive scrolling.
+
+Try:
 
 ```bash
-pip install -e .
+--slow-mo 500 --headless false
 ```
 
-Then run the command:
+Or split downloads into multiple runs.
+
+---
+
+### yt-dlp fails or quality is low
+
+Update yt-dlp:
 
 ```bash
-tiktok-account-downloader https://www.tiktok.com/@username
+pip install -U yt-dlp
 ```
 
 ---
 
-## 📄 License
+### Playwright crashes
 
-This project is licensed under the [MIT License](LICENSE).
+Reinstall browsers:
+
+```bash
+python -m playwright install --with-deps chromium
+```
+
+---
+
+### MongoDB caching not working
+
+Check that your `MONGO_URI` contains the correct credentials and database name.
+
+---
+
+# Legal Notice
+
+This tool is intended for **personal archiving and research purposes**.
+
+Always respect:
+
+- TikTok Terms of Service
+- Copyright laws
+- Content ownership
+
+---
+
+# Contributing
+
+Pull requests are welcome.
+
+1. Fork the repo  
+2. Clone your fork  
+3. Install dev dependencies  
+
+```bash
+pip install -e ".[dev]"
+```
+
+4. Make changes  
+5. Add tests if possible (`pytest`)  
+6. Submit a pull request  
+
+### Suggested Improvements
+
+- Resume interrupted downloads
+- Support photo/slideshow posts
+- Better progress statistics
+- Docker support
+- Single-file executable
+
+---
+
+# License
+
+MIT License © 2026 fervidos
+
+---
+
+<p align="center">
+Made with ❤️ for archivists, researchers, and data hoarders.
+</p>
+
+<p align="center">
+⭐ Star the project if it saved you time.
+</p>
