@@ -1,22 +1,17 @@
 # TikTok Account Downloader
 
-A **TikTok account downloader** written in Python.
+A **TikTok profile scraper + downloader** written in Python.
 
-This project uses **Playwright** to scrape TikTok profiles for video URLs and **yt-dlp** to download the videos with a polished progress UI (Rich). It also includes an optional **FastAPI viewer** for locally browsing downloaded videos.
+This tool uses **Playwright** to scan TikTok accounts for video post URLs and **yt-dlp** to download the media in the best available quality. It includes:
 
----
-
-## 🚀 Key Features
-
-- Scan a TikTok profile for video URLs (no API required)
-- Download TikTok videos using `yt-dlp` (best audio + video)
-- Optional MongoDB caching to avoid re-downloading videos
-- Cookie support (Netscape cookies file or browser cookies) to handle age-restricted/private profiles
-- Local vertical web viewer (FastAPI + StaticFiles) for quick review
+- A CLI scanner/downloader (`tiktok-account-downloader`)
+- Optional cookie support for private/age-gated profiles
+- Optional MongoDB caching to skip already-downloaded videos
+- A local FastAPI viewer to browse downloaded videos
 
 ---
 
-## ✅ Quick Start
+## ✅ Quick Start (Windows / macOS / Linux)
 
 ### 1) Clone the repo
 
@@ -29,88 +24,120 @@ cd TikTok-Account-Downloader
 
 ```bash
 python -m venv .venv
-source .venv/bin/activate  # macOS/Linux
-.venv\Scripts\activate    # Windows
+# Windows
+.venv\Scripts\activate
+# macOS/Linux
+source .venv/bin/activate
 
 pip install -r requirements.txt
 ```
 
-> ⚠️ **Playwright requires a browser runtime**
+### 3) Install Playwright browser runtime (required)
 
 ```bash
 python -m playwright install chromium
 ```
 
-### 3) Provide cookies (optional but recommended)
+> **Tip:** If you want to use a different browser engine (Firefox / WebKit), run `python -m playwright install firefox` or `python -m playwright install webkit`.
 
-- If you have a `cookies.txt` (Netscape format), place it at:
+---
 
-  - `src/cookies.txt` (recommended)
+## 🛠️ How to Use
 
-- Or use a local browser to extract cookies with the `--browser` flag (Chrome/Firefox/Edge/Brave/Opera/Safari).
-
-> 📌 Example cookies template: `src/cookies.example.txt`
-
-### 4) Run the scanner
+### 1) Download videos from a TikTok profile
 
 ```bash
 python -m tiktok_account_downloader.cli https://www.tiktok.com/@username
 ```
 
-#### Useful flags
+**Example**
 
-- `--dry-run` — scan but do not download
+```bash
+python -m tiktok_account_downloader.cli https://www.tiktok.com/@kylek9
+```
+
+#### Common flags
+
+- `--dry-run` — scan only (no downloads)
 - `--limit N` — stop after finding N videos
-- `--output path` — choose output directory
-- `--browser chrome` — pull cookies from a local browser profile
-- `--cookies-file path` — specify a custom cookies file
-- `--mongo-uri <uri>` — use MongoDB for caching downloaded video IDs
+- `--output <path>` — output directory (defaults to `downloads/`)
+- `--cookies-file <path>` — use a Netscape-format cookie file
+- `--browser <name>` — load cookies from a local browser (chrome/firefox/edge/brave/opera)
+- `--mongo-uri <uri>` — enable MongoDB caching (stores downloaded video IDs)
 
 ---
 
-## 🖥 Viewer (optional)
+## 🍪 Cookie Support (Recommended)
 
-A simple local web app to browse downloaded media.
+TikTok often requires login/cookies for age-gated or private content. Two ways to provide cookies:
+
+### Option A) Use a cookies file
+
+1. Export cookies in **Netscape `cookies.txt`** format (e.g. via a browser extension).
+2. Place it at `src/cookies.txt` (default) or pass `--cookies-file /path/to/cookies.txt`.
+
+> Example template: `src/cookies.example.txt`
+
+### Option B) Load cookies from a local browser profile
+
+```bash
+python -m tiktok_account_downloader.cli --browser chrome https://www.tiktok.com/@username
+```
+
+Supported browser names: `chrome`, `firefox`, `edge`, `brave`, `opera`.
+
+---
+
+## 🧠 Caching with MongoDB (Optional)
+
+If you run the scraper frequently, enabling caching avoids re-downloading the same videos.
+
+1) Run a MongoDB instance (local or cloud).
+2) Set `MONGO_URI` via env var or `.env`.
+
+```bash
+set MONGO_URI="mongodb+srv://<user>:<pw>@<cluster>/tiktok_account_downloader"
+# or on macOS/Linux
+export MONGO_URI="mongodb+srv://<user>:<pw>@<cluster>/tiktok_account_downloader"
+```
+
+Then run the scanner normally; it will store downloaded video IDs and skip duplicates.
+
+---
+
+## 🖥️ Viewer: Browse Downloaded Videos
+
+Run the built-in FastAPI viewer:
 
 ```bash
 python viewer.py
 ```
 
-Then open: http://127.0.0.1:8000
+Then open in your browser:
 
-By default this serves files from `downloads/_kept/`, but you can override the directory via:
+```
+http://127.0.0.1:8000
+```
+
+Default directory served is `downloads/_kept/`. To change it:
 
 ```bash
-set TIKTOK_SCANNER_KEPT_DIR=path\\to\\videos     # Windows
+set TIKTOK_SCANNER_KEPT_DIR=path\to\videos     # Windows
 export TIKTOK_SCANNER_KEPT_DIR=path/to/videos      # macOS/Linux
 python viewer.py
 ```
 
 ---
 
-## 🧩 Configuration
-
-### Environment variables
-
-Create a `.env` file (not committed) with values such as:
-
-```ini
-MONGO_URI="mongodb+srv://<user>:<pw>@<cluster>/tiktok_account_downloader"
-```
-
-> Use `.env.example` as a template.
-
----
-
 ## 🧪 Development
 
-Install the package in editable mode:
+Install and develop in editable mode:
 
 ```bash
 pip install -e .
 ```
 
-Then you can run the CLI as:
+Then run the CLI command directly:
 
 ```bash
 tiktok-account-downloader https://www.tiktok.com/@username
@@ -118,6 +145,14 @@ tiktok-account-downloader https://www.tiktok.com/@username
 
 ---
 
-## 🧾 License
+## 🚀 Tips & Troubleshooting
+
+- **Playwright errors**: Ensure the browser runtime is installed (`python -m playwright install chromium`).
+- **Login required / missing videos**: Provide valid cookies or use `--browser` to load local browser cookies.
+- **Slow scraping**: TikTok may throttle requests; use a higher `--limit` carefully and avoid rapid repeated runs.
+
+---
+
+## 📄 License
 
 This project is licensed under the [MIT License](LICENSE).
