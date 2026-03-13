@@ -1,0 +1,40 @@
+[build-system]
+requires = ["setuptools>=61.0", "wheel"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "tiktok-account-downloader"
+version = "0.1.0"
+description = "TikTok account downloader using Playwright and yt-dlp."
+readme = "README.md"
+requires-python = ">=3.10"
+license = {text = "MIT"}
+keywords = ["tiktok", "downloader", "yt-dlp", "playwright", "videos"]
+authors = [
+  {name = "TikTok Account Downloader Contributors"},
+]
+classifiers = [
+  "Programming Language :: Python :: 3",
+  "License :: OSI Approved :: MIT License",
+  "Operating System :: OS Independent",
+]
+
+[project.urls]
+"Source" = "https://github.com/fervidos/TikTok-Account-Downloader"
+"Tracker" = "https://github.com/fervidos/TikTok-Account-Downloader/issues"
+
+[project.dependencies]
+playwright = "*"
+yt-dlp = "*"
+playwright-stealth = "*"
+fastapi = "*"
+uvicorn = "*"
+pymongo = "*"
+rich = "*"
+
+[project.optional-dependencies]
+viewer = ["fastapi", "uvicorn"]
+
+[project.scripts]
+tiktok-account-downloader = "tiktok_account_downloader.cli:main"
+tiktokdownloader = "tiktok_account_downloader.cli:main"

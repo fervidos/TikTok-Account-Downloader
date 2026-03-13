@@ -1,0 +1,458 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>Premium TikTok Viewer</title>
+    <style>
+        :root {
+            --bg-color: #000000;
+            --text-color: #ffffff;
+            --accent-color: #ff0050;
+            /* TikTok Pink */
+            --glass-bg: rgba(255, 255, 255, 0.1);
+            --glass-border: rgba(255, 255, 255, 0.2);
+        }
+
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+            font-family: 'Segoe UI', Roboto, Helvetica, Arial, sans-serif;
+        }
+
+        body,
+        html {
+            width: 100%;
+            height: 100%;
+            background-color: var(--bg-color);
+            color: var(--text-color);
+            overflow: hidden;
+            /* Prevent native body scrolling */
+        }
+
+        /* Loading Screen */
+        #loading-screen {
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            display: flex;
+            flex-direction: column;
+            justify-content: center;
+            align-items: center;
+            background-color: var(--bg-color);
+            z-index: 9999;
+            transition: opacity 0.5s ease;
+        }
+
+        .spinner {
+            width: 50px;
+            height: 50px;
+            border: 5px solid var(--glass-bg);
+            border-top: 5px solid var(--accent-color);
+            border-radius: 50%;
+            animation: spin 1s linear infinite;
+            margin-bottom: 20px;
+        }
+
+        @keyframes spin {
+            0% {
+                transform: rotate(0deg);
+            }
+
+            100% {
+                transform: rotate(360deg);
+            }
+        }
+
+        /* The main scroll container */
+        .video-feed {
+            width: 100%;
+            height: 100%;
+            overflow-y: scroll;
+            scroll-snap-type: y mandatory;
+            scroll-behavior: smooth;
+        }
+
+        /* Hide scrollbar for Chrome, Safari and Opera */
+        .video-feed::-webkit-scrollbar {
+            display: none;
+        }
+
+        /* Hide scrollbar for IE, Edge and Firefox */
+        .video-feed {
+            -ms-overflow-style: none;
+            /* IE and Edge */
+            scrollbar-width: none;
+            /* Firefox */
+        }
+
+        /* Individual Video Container */
+        .video-container {
+            position: relative;
+            width: 100%;
+            height: 100vh;
+            scroll-snap-align: start;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            background-color: #111;
+        }
+
+        /* The actual video / image element */
+        .media-element {
+            width: 100%;
+            height: 100%;
+            object-fit: contain;
+            /* Contain to show full media, use cover for true tiktok style but cuts off edges */
+            background-color: #000;
+        }
+
+        /* Overlay UI Elements */
+        .overlay-ui {
+            position: absolute;
+            bottom: 0;
+            left: 0;
+            width: 100%;
+            padding: 30px 20px 40px 20px;
+            background: linear-gradient(to top, rgba(0, 0, 0, 0.8) 0%, rgba(0, 0, 0, 0) 100%);
+            display: flex;
+            flex-direction: column;
+            pointer-events: none;
+            /* Let clicks pass through to video */
+        }
+
+        .video-title {
+            font-size: 1.1rem;
+            font-weight: 600;
+            margin-bottom: 8px;
+            text-shadow: 1px 1px 3px rgba(0, 0, 0, 0.8);
+            word-break: break-all;
+            display: -webkit-box;
+            -webkit-line-clamp: 2;
+            -webkit-box-orient: vertical;
+            overflow: hidden;
+        }
+
+        .video-creator {
+            font-size: 0.9rem;
+            color: rgba(255, 255, 255, 0.8);
+            display: flex;
+            align-items: center;
+            text-shadow: 1px 1px 3px rgba(0, 0, 0, 0.8);
+            margin-bottom: 5px;
+        }
+
+        .creator-avatar {
+            width: 24px;
+            height: 24px;
+            border-radius: 50%;
+            background-color: var(--accent-color);
+            margin-right: 8px;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            font-weight: bold;
+            font-size: 0.7rem;
+        }
+
+        .video-meta {
+            font-size: 0.8rem;
+            color: rgba(255, 255, 255, 0.5);
+        }
+
+        /* Play/Pause indicator (glassmorphism style) */
+        .play-pause-indicator {
+            position: absolute;
+            top: 50%;
+            left: 50%;
+            transform: translate(-50%, -50%) scale(0.5);
+            width: 80px;
+            height: 80px;
+            background: var(--glass-bg);
+            backdrop-filter: blur(10px);
+            -webkit-backdrop-filter: blur(10px);
+            border: 1px solid var(--glass-border);
+            border-radius: 50%;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            opacity: 0;
+            transition: opacity 0.3s ease, transform 0.3s ease;
+            pointer-events: none;
+            box-shadow: 0 8px 32px 0 rgba(0, 0, 0, 0.3);
+        }
+
+        .play-pause-indicator.show {
+            opacity: 1;
+            transform: translate(-50%, -50%) scale(1);
+        }
+
+        .play-icon {
+            width: 0;
+            height: 0;
+            border-top: 15px solid transparent;
+            border-bottom: 15px solid transparent;
+            border-left: 25px solid white;
+            margin-left: 8px;
+            /* Optical center */
+        }
+
+        /* Play Button requirement for auto-play block on first load */
+        #start-button {
+            padding: 15px 40px;
+            font-size: 1.2rem;
+            font-weight: bold;
+            background-color: var(--accent-color);
+            color: white;
+            border: none;
+            border-radius: 30px;
+            cursor: pointer;
+            box-shadow: 0 4px 15px rgba(255, 0, 80, 0.4);
+            transition: transform 0.2s, box-shadow 0.2s;
+            margin-top: 30px;
+        }
+
+        #start-button:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 6px 20px rgba(255, 0, 80, 0.6);
+        }
+
+        #start-button:active {
+            transform: translateY(2px);
+        }
+
+        /* Empty state */
+        .empty-state {
+            display: flex;
+            flex-direction: column;
+            justify-content: center;
+            align-items: center;
+            height: 100vh;
+            text-align: center;
+            padding: 20px;
+            color: rgba(255, 255, 255, 0.5);
+        }
+
+        .empty-icon {
+            font-size: 3rem;
+            margin-bottom: 15px;
+            opacity: 0.5;
+        }
+    </style>
+</head>
+
+<body>
+
+    <div id="loading-screen">
+        <div class="spinner"></div>
+        <h2>Loading _kept Media</h2>
+        <button id="start-button" style="display: none;">Enter Viewer</button>
+    </div>
+
+    <div class="video-feed" id="feed">
+        <!-- Videos will be injected here -->
+    </div>
+
+    <script>
+        document.addEventListener('DOMContentLoaded', () => {
+            const feedContainer = document.getElementById('feed');
+            const loadingScreen = document.getElementById('loading-screen');
+            const startButton = document.getElementById('start-button');
+            const loadingText = loadingScreen.querySelector('h2');
+            const spinner = loadingScreen.querySelector('.spinner');
+
+            let videosList = [];
+            let isMuted = false; // Start unmuted, but require user interaction first
+
+            // 1. Fetch the video list from API
+            async function fetchVideos() {
+                try {
+                    const response = await fetch('/api/videos');
+                    if (!response.ok) throw new Error('Network response was not ok');
+                    const data = await response.json();
+                    videosList = data.videos;
+
+                    if (videosList.length === 0) {
+                        showEmptyState();
+                        return;
+                    }
+
+                    // We have media, require user interaction to bypass autoplay restrictions
+                    spinner.style.display = 'none';
+                    loadingText.innerText = `Found ${videosList.length} items`;
+                    startButton.style.display = 'block';
+
+                } catch (error) {
+                    console.error("Error fetching videos:", error);
+                    loadingText.innerText = "Error loading videos :(";
+                    spinner.style.display = 'none';
+                }
+            }
+
+            // 2. Initialize the UI after user clicks Start
+            startButton.addEventListener('click', () => {
+                loadingScreen.style.opacity = '0';
+                setTimeout(() => {
+                    loadingScreen.style.display = 'none';
+                    renderVideos();
+                    setupIntersectionObserver();
+                }, 500); // Wait for fade out
+            });
+
+            // Parse URL into meaningful creator and title
+            function parseVideoPath(path) {
+                // Example: creator_name/creator_name_20231201_7123456789_the_title_here.mp4
+                const parts = path.split('/');
+                let creator = "Unknown";
+                let title = path;
+
+                if (parts.length > 1) {
+                    creator = parts[0];
+                    title = parts[parts.length - 1]; // Just the file name
+                } else {
+                    title = parts[0];
+                }
+
+                // Clean up title (remove extension and try to make it readable)
+                title = title.replace(/\.(mp4|webm|mkv|jpe?g|png|gif)$/i, '');
+
+                // If it follows the standard yt-dlp format we used: uploader_date_id_title
+                const titleParts = title.split('_');
+                if (titleParts.length >= 4) {
+                    // Rejoin the title part only
+                    title = titleParts.slice(3).join(' ');
+                }
+
+                return { creator, title };
+            }
+
+            // 3. Render media elements (videos + photos)
+            function renderVideos() {
+                videosList.forEach((mediaPath, index) => {
+                    const { creator, title } = parseVideoPath(mediaPath);
+                    // Encode each part of the path to safely handle characters like '#' and '?' in filenames
+                    const encodedPath = '/videos/' + mediaPath.split('/').map(encodeURIComponent).join('/');
+
+                    const isVideo = /\.(mp4|webm|mkv)$/i.test(mediaPath);
+                    const isImage = /\.(jpe?g|png|gif)$/i.test(mediaPath);
+
+                    const container = document.createElement('div');
+                    container.className = 'video-container';
+
+                    // The media element (video or image)
+                    let mediaElement;
+                    if (isVideo) {
+                        mediaElement = document.createElement('video');
+                        mediaElement.src = encodedPath;
+                        mediaElement.loop = true;
+                        mediaElement.muted = isMuted; // Use global mute state
+                        mediaElement.playsInline = true;
+                        mediaElement.preload = index < 3 ? 'auto' : 'metadata'; // Preload first 3 heavily
+                    } else {
+                        mediaElement = document.createElement('img');
+                        mediaElement.src = encodedPath;
+                        mediaElement.alt = title || 'TikTok Media';
+                        mediaElement.loading = index < 3 ? 'eager' : 'lazy';
+                        mediaElement.decoding = 'async';
+                    }
+                    mediaElement.className = 'media-element';
+
+                    // The overlay UI
+                    const overlay = document.createElement('div');
+                    overlay.className = 'overlay-ui';
+                    overlay.innerHTML = `
+                        <div class="video-creator">
+                            <div class="creator-avatar">${creator.charAt(0).toUpperCase()}</div>
+                            @${creator}
+                        </div>
+                        <div class="video-title">${title || 'TikTok Video'}</div>
+                    `;
+
+                    // Play/Pause indicator
+                    const playIndicator = document.createElement('div');
+                    playIndicator.className = 'play-pause-indicator';
+                    playIndicator.innerHTML = '<div class="play-icon"></div>';
+
+                    // Interaction logic (click to pause/play for videos only)
+                    container.addEventListener('click', () => {
+                        if (!isVideo) return;
+
+                        if (mediaElement.paused) {
+                            mediaElement.play();
+                            playIndicator.classList.remove('show');
+                        } else {
+                            mediaElement.pause();
+                            playIndicator.classList.add('show');
+                        }
+                    });
+
+                    container.appendChild(mediaElement);
+                    container.appendChild(overlay);
+                    container.appendChild(playIndicator);
+                    feedContainer.appendChild(container);
+                });
+            }
+
+            // 4. Setup Intersection Observer for TikTok-style swipe play
+            function setupIntersectionObserver() {
+                const options = {
+                    root: feedContainer, // The scrolling container
+                    rootMargin: '0px',
+                    threshold: 0.6 // Trigger when 60% of the video is visible
+                };
+
+                const observer = new IntersectionObserver((entries) => {
+                    entries.forEach(entry => {
+                        const video = entry.target.querySelector('video');
+                        const playIndicator = entry.target.querySelector('.play-pause-indicator');
+
+                        if (!video) return;
+
+                        if (entry.isIntersecting) {
+                            // Video is in view, play it
+                            const playPromise = video.play();
+                            if (playPromise !== undefined) {
+                                playPromise.catch(error => {
+                                    console.log("Auto-play prevented", error);
+                                    // If autoplay fails, we might need to show the play button
+                                    playIndicator.classList.add('show');
+                                });
+                            }
+                            playIndicator.classList.remove('show');
+                        } else {
+                            // Video is out of view, pause it and reset to beginning
+                            video.pause();
+                            video.currentTime = 0;
+                            playIndicator.classList.remove('show');
+                        }
+                    });
+                }, options);
+
+                // Observe all video containers
+                document.querySelectorAll('.video-container').forEach(container => {
+                    observer.observe(container);
+                });
+            }
+
+            function showEmptyState() {
+                loadingScreen.style.display = 'none';
+                feedContainer.innerHTML = `
+                    <div class="empty-state">
+                        <div class="empty-icon">📁</div>
+                        <h2>No media found</h2>
+                        <p>The _kept folder is currently empty.</p>
+                    </div>
+                `;
+            }
+
+            // Kickoff
+            fetchVideos();
+        });
+    </script>
+</body>
+
+</html>

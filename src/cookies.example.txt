@@ -1,0 +1,9 @@
+# Example Netscape cookies.txt file for TikTok.
+#
+# You can export this from your browser (e.g., using EditThisCookie, cookie editors, etc.)
+# and place it at `src/cookies.txt` (or pass a custom path with --cookies-file).
+#
+# Each line has the format:
+# domain \t includeSubdomains \t path \t secure \t expires \t name \t value
+#
+# Only cookies for TikTok domains are used; others are ignored.
