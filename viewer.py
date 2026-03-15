@@ -3,6 +3,7 @@ from typing import List
 import os
 
 from fastapi import FastAPI
+from fastapi import Query
 from fastapi.responses import HTMLResponse
 from fastapi.staticfiles import StaticFiles
 from pydantic import BaseModel
@@ -29,6 +30,32 @@ class VideoResponse(BaseModel):
     videos: List[str]
 
 
+class CreatorsResponse(BaseModel):
+    creators: List[str]
+
+
+def _collect_media_files() -> List[str]:
+    """Return all relative media file paths under KEPT_DIR."""
+    media_files: List[str] = []
+    media_extensions = (".mp4", ".webm", ".mkv", ".jpg", ".jpeg", ".png", ".gif")
+
+    for root, _, files in os.walk(str(KEPT_DIR)):
+        for fname in files:
+            if fname.lower().endswith(media_extensions):
+                rel = Path(root).relative_to(KEPT_DIR) / fname
+                media_files.append(str(rel).replace("\\", "/"))
+
+    try:
+        media_files.sort(
+            key=lambda path: os.path.getmtime(KEPT_DIR / path),
+            reverse=True,
+        )
+    except Exception:
+        pass
+
+    return media_files
+
+
 @app.get("/", response_class=HTMLResponse)
 async def get_viewer() -> HTMLResponse:
     """Return the HTML entry point for the vertical viewer."""
@@ -39,29 +66,32 @@ async def get_viewer() -> HTMLResponse:
 
 
 @app.get("/api/videos", response_model=VideoResponse)
-async def list_videos() -> VideoResponse:
+async def list_videos(
+    creator: str = Query(default="", description="Filter by creator folder"),
+    q: str = Query(default="", description="Case-insensitive filename/path search"),
+) -> VideoResponse:
     """Return a list of relative paths for all supported video files under ``KEPT_DIR``."""
-    video_files: List[str] = []
-    # Support both videos and photo/media files
-    media_extensions = (".mp4", ".webm", ".mkv", ".jpg", ".jpeg", ".png", ".gif")
+    video_files = _collect_media_files()
 
-    for root, _, files in os.walk(str(KEPT_DIR)):
-        for fname in files:
-            if fname.lower().endswith(media_extensions):
-                # relative path from KEPT_DIR using forward slashes
-                rel = Path(root).relative_to(KEPT_DIR) / fname
-                video_files.append(str(rel).replace("\\", "/"))
+    normalized_creator = creator.strip().lower()
+    if normalized_creator:
+        video_files = [
+            p for p in video_files
+            if p.split("/", 1)[0].lower() == normalized_creator
+        ]
 
-    try:
-        video_files.sort(
-            key=lambda path: os.path.getmtime(KEPT_DIR / path),
-            reverse=True,
-        )
-    except Exception:
-        # best effort; sorting failure shouldn't prevent listing
-        pass
+    normalized_query = q.strip().lower()
+    if normalized_query:
+        video_files = [p for p in video_files if normalized_query in p.lower()]
 
     return VideoResponse(videos=video_files)
+
+
+@app.get("/api/creators", response_model=CreatorsResponse)
+async def list_creators() -> CreatorsResponse:
+    """Return unique creator folders inferred from media relative paths."""
+    creators = sorted({p.split("/", 1)[0] for p in _collect_media_files() if "/" in p})
+    return CreatorsResponse(creators=creators)
 
 
 if __name__ == "__main__":

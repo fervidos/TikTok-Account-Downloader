@@ -4,17 +4,20 @@ setlocal EnableExtensions EnableDelayedExpansion
 
 :: Locate repo/app folder (supports running from inside or next to it)
 set "SCRIPT_DIR=%~dp0"
-set "APP_DIR=%SCRIPT_DIR%TikTokScanner-main"
+set "APP_DIR=%SCRIPT_DIR%"
 
-:: If we're inside the repo already, use current folder
-if exist "%SCRIPT_DIR%src\main.py" (
-  set "APP_DIR=%SCRIPT_DIR%"
+:: If the script sits beside a repo folder, try known folder names
+if not exist "%APP_DIR%src\main.py" if exist "%SCRIPT_DIR%TikTokAccountDownloader\src\main.py" (
+  set "APP_DIR=%SCRIPT_DIR%TikTokAccountDownloader"
+)
+if not exist "%APP_DIR%src\main.py" if exist "%SCRIPT_DIR%TikTokScanner-main\src\main.py" (
+  set "APP_DIR=%SCRIPT_DIR%TikTokScanner-main"
 )
 
 :: Verify entry point exists
 if not exist "%APP_DIR%\src\main.py" (
   echo ERROR: Could not find src\main.py.
-  echo Put this batch file next to the TikTokScanner-main folder, or inside the TikTokScanner-main folder.
+  echo Put this batch file inside the project folder, or next to a valid repo folder.
   pause
   exit /b 1
 )
@@ -44,6 +47,7 @@ echo.
 echo Usage: %~n0 [URL^|@username] [--concurrent N] [--headless] [--no-headless] [--force-full-scan] [--no-full-scan] [--cookies-file PATH] [--mongo-uri URI]
 echo.
 echo If no arguments are provided, this script will prompt for values.
+echo Defaults: --concurrent 3, non-headless mode, early-stop scan enabled.
 echo.
 echo This script will load an optional .env file from the repo root (if present).
 echo You can set MONGO_URI via .env or environment variable to enable database tracking.
@@ -115,6 +119,8 @@ goto parse_args
 
 :args_parsed
 
+:start_run
+
 :: Prompt for missing values (only URL is required)
 :prompt_for_url
 if "%ARG_URL%"=="" (
@@ -124,9 +130,19 @@ if "%ARG_URL%"=="" (
 
 :: Default settings (no prompting)
 if "%ARG_CONCURRENT%"=="" set "ARG_CONCURRENT=3"
-if "%ARG_HEADLESS%"=="" set "ARG_HEADLESS=1"
-:: Always default to full scan unless explicitly disabled
-if "%ARG_FULLSCAN%"=="" set "ARG_FULLSCAN=1"
+set "ARG_HEADLESS=1"
+
+:: Ask user if full scan should be enabled when not explicitly provided
+if "%ARG_FULLSCAN%"=="" (
+  echo.
+  echo Full scan checks the whole profile and can take longer.
+  choice /c YN /n /m "Enable full scan? [Y/N]: "
+  if errorlevel 2 (
+    set "ARG_FULLSCAN=0"
+  ) else (
+    set "ARG_FULLSCAN=1"
+  )
+)
 
 :: Validate concurrent (must be positive integer)
 echo %ARG_CONCURRENT%| findstr /r "^[0-9][0-9]*$" >nul
@@ -164,4 +180,13 @@ REM echo %CMD%
 
 popd
 
-pause
+echo.
+choice /c SE /n /m "Press [S] to scan another user, or [E] to exit: "
+if errorlevel 2 exit /b 0
+if errorlevel 1 (
+  set "ARG_URL="
+  set "ARG_FULLSCAN="
+  goto start_run
+)
+
+exit /b 0

@@ -103,7 +103,7 @@ def download_videos(
     db_collection = None
     if mongo_uri:
         console.print("[dim]Connecting to MongoDB...[/dim]")
-        db_collection = get_db_collection(mongo_uri)
+        db_collection = get_db_collection(mongo_uri, fail_fast=False)
 
         # pre-filter against DB (only for videos that are not already on disk)
         url_map = [(url, vid) for url, vid in url_map if vid and not file_exists_for_video(output_folder, vid)]

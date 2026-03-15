@@ -9,7 +9,7 @@ from rich.console import Console
 console = Console()
 
 
-def get_db_collection(mongo_uri: str):
+def get_db_collection(mongo_uri: str, fail_fast: bool = True):
     """Return a :class:`pymongo.collection.Collection` for downloaded videos.
 
     The function will exit the program if it cannot connect, since the calling
@@ -17,9 +17,13 @@ def get_db_collection(mongo_uri: str):
     """
     try:
         client = MongoClient(mongo_uri, serverSelectionTimeoutMS=5000)
+        # Force early validation so users get immediate feedback.
+        client.admin.command("ping")
         db = client['tiktok_account_downloader']
         collection = db['downloaded_videos']
         return collection
     except Exception as e:
         console.print(f"[bold red]Failed to connect to MongoDB: {e}[/bold red]")
-        sys.exit(1)
+        if fail_fast:
+            sys.exit(1)
+        return None

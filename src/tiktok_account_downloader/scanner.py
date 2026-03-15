@@ -102,7 +102,7 @@ class TikTokAccountDownloader:
                     try:
                         db_collection = None
                         if self.mongo_uri:
-                            db_collection = get_db_collection(self.mongo_uri)
+                            db_collection = get_db_collection(self.mongo_uri, fail_fast=False)
 
                         await page.goto(self.profile_url, timeout=60000)
                         await page.wait_for_load_state("domcontentloaded")

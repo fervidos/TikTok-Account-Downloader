@@ -132,6 +132,7 @@
             text-shadow: 1px 1px 3px rgba(0, 0, 0, 0.8);
             word-break: break-all;
             display: -webkit-box;
+            line-clamp: 2;
             -webkit-line-clamp: 2;
             -webkit-box-orient: vertical;
             overflow: hidden;
@@ -242,6 +243,150 @@
             margin-bottom: 15px;
             opacity: 0.5;
         }
+
+        .viewer-controls {
+            position: fixed;
+            top: 16px;
+            right: 16px;
+            z-index: 1000;
+            display: flex;
+            align-items: center;
+            gap: 8px;
+            pointer-events: auto;
+        }
+
+        .viewer-button {
+            border: 1px solid var(--glass-border);
+            background: var(--glass-bg);
+            color: #fff;
+            padding: 9px 12px;
+            border-radius: 999px;
+            font-size: 0.85rem;
+            cursor: pointer;
+            backdrop-filter: blur(8px);
+            -webkit-backdrop-filter: blur(8px);
+        }
+
+        .viewer-button:focus-visible {
+            outline: 2px solid var(--accent-color);
+            outline-offset: 2px;
+        }
+
+        .viewer-counter {
+            border: 1px solid var(--glass-border);
+            background: var(--glass-bg);
+            color: #fff;
+            padding: 9px 12px;
+            border-radius: 999px;
+            font-size: 0.85rem;
+            min-width: 72px;
+            text-align: center;
+            backdrop-filter: blur(8px);
+            -webkit-backdrop-filter: blur(8px);
+        }
+
+        .viewer-hint {
+            position: fixed;
+            left: 50%;
+            transform: translateX(-50%);
+            bottom: 16px;
+            z-index: 1000;
+            font-size: 0.8rem;
+            color: rgba(255, 255, 255, 0.85);
+            border: 1px solid var(--glass-border);
+            background: rgba(0, 0, 0, 0.45);
+            border-radius: 999px;
+            padding: 8px 12px;
+            backdrop-filter: blur(4px);
+            -webkit-backdrop-filter: blur(4px);
+        }
+
+        .filter-panel {
+            position: fixed;
+            top: 16px;
+            left: 16px;
+            z-index: 1000;
+            display: flex;
+            align-items: center;
+            gap: 8px;
+            border: 1px solid var(--glass-border);
+            background: rgba(0, 0, 0, 0.45);
+            border-radius: 999px;
+            padding: 8px;
+            backdrop-filter: blur(8px);
+            -webkit-backdrop-filter: blur(8px);
+        }
+
+        .filter-control {
+            border: 1px solid var(--glass-border);
+            background: rgba(255, 255, 255, 0.12);
+            color: #fff;
+            border-radius: 999px;
+            padding: 8px 10px;
+            font-size: 0.82rem;
+            min-width: 120px;
+        }
+
+        .filter-control::placeholder {
+            color: rgba(255, 255, 255, 0.7);
+        }
+
+        .filter-control option {
+            color: #111;
+        }
+
+        .filter-button {
+            border: 1px solid var(--glass-border);
+            background: var(--glass-bg);
+            color: #fff;
+            border-radius: 999px;
+            padding: 8px 10px;
+            font-size: 0.82rem;
+            cursor: pointer;
+        }
+
+        .filtered-empty {
+            height: 100vh;
+            display: flex;
+            flex-direction: column;
+            justify-content: center;
+            align-items: center;
+            text-align: center;
+            color: rgba(255, 255, 255, 0.8);
+            padding: 20px;
+        }
+
+        @media (max-width: 640px) {
+            .viewer-controls {
+                top: 10px;
+                right: 10px;
+            }
+
+            .filter-panel {
+                top: 10px;
+                left: 10px;
+                max-width: calc(100vw - 20px);
+                overflow-x: auto;
+                scrollbar-width: none;
+            }
+
+            .filter-panel::-webkit-scrollbar {
+                display: none;
+            }
+
+            .viewer-button,
+            .viewer-counter,
+            .filter-control,
+            .filter-button {
+                padding: 8px 10px;
+                font-size: 0.78rem;
+            }
+
+            .viewer-hint {
+                font-size: 0.72rem;
+                padding: 7px 10px;
+            }
+        }
     </style>
 </head>
 
@@ -257,6 +402,25 @@
         <!-- Videos will be injected here -->
     </div>
 
+    <div class="filter-panel" id="filter-panel" style="display: none;">
+        <select class="filter-control" id="creator-filter" aria-label="Filter by creator">
+            <option value="">All creators</option>
+        </select>
+        <input class="filter-control" id="search-filter" type="text" placeholder="Search filename..." aria-label="Search videos" />
+        <button class="filter-button" id="filter-apply" aria-label="Apply filters">Apply</button>
+        <button class="filter-button" id="filter-clear" aria-label="Clear filters">Clear</button>
+    </div>
+
+    <div class="viewer-controls" id="viewer-controls" style="display: none;">
+        <button class="viewer-button" id="mute-toggle" aria-label="Toggle mute">Mute: Off</button>
+        <button class="viewer-button" id="fullscreen-toggle" aria-label="Toggle fullscreen">Fullscreen</button>
+        <div class="viewer-counter" id="item-counter" aria-live="polite">0 / 0</div>
+    </div>
+
+    <div class="viewer-hint" id="viewer-hint" style="display: none;">
+        Keys: Up/Down navigate, Space play/pause, M mute, F fullscreen
+    </div>
+
     <script>
         document.addEventListener('DOMContentLoaded', () => {
             const feedContainer = document.getElementById('feed');
@@ -264,14 +428,151 @@
             const startButton = document.getElementById('start-button');
             const loadingText = loadingScreen.querySelector('h2');
             const spinner = loadingScreen.querySelector('.spinner');
+            const viewerControls = document.getElementById('viewer-controls');
+            const itemCounter = document.getElementById('item-counter');
+            const muteToggle = document.getElementById('mute-toggle');
+            const fullscreenToggle = document.getElementById('fullscreen-toggle');
+            const viewerHint = document.getElementById('viewer-hint');
+            const filterPanel = document.getElementById('filter-panel');
+            const creatorFilter = document.getElementById('creator-filter');
+            const searchFilter = document.getElementById('search-filter');
+            const filterApply = document.getElementById('filter-apply');
+            const filterClear = document.getElementById('filter-clear');
 
             let videosList = [];
             let isMuted = false; // Start unmuted, but require user interaction first
+            let currentIndex = 1;
+            let feedObserver = null;
+
+            function getAllContainers() {
+                return Array.from(document.querySelectorAll('.video-container'));
+            }
+
+            function getContainerAt(index) {
+                const containers = getAllContainers();
+                return containers[index - 1] || null;
+            }
+
+            function updateCounter(index) {
+                currentIndex = Math.max(1, Math.min(index, videosList.length || 1));
+                itemCounter.innerText = `${videosList.length ? currentIndex : 0} / ${videosList.length}`;
+            }
+
+            function syncMuteButton() {
+                muteToggle.innerText = isMuted ? 'Mute: On' : 'Mute: Off';
+            }
+
+            function setMutedForAllVideos() {
+                document.querySelectorAll('video').forEach(video => {
+                    video.muted = isMuted;
+                });
+            }
+
+            function toggleFullscreen() {
+                if (!document.fullscreenElement) {
+                    document.documentElement.requestFullscreen?.();
+                } else {
+                    document.exitFullscreen?.();
+                }
+            }
+
+            function scrollToIndex(index) {
+                const bounded = Math.max(1, Math.min(index, videosList.length));
+                const container = getContainerAt(bounded);
+                if (!container) return;
+                container.scrollIntoView({ behavior: 'smooth', block: 'start' });
+                updateCounter(bounded);
+            }
+
+            function toggleCurrentVideoPlayback() {
+                const container = getContainerAt(currentIndex);
+                if (!container) return;
+                const video = container.querySelector('video');
+                const playIndicator = container.querySelector('.play-pause-indicator');
+                if (!video) return;
+                if (video.paused) {
+                    video.play();
+                    playIndicator?.classList.remove('show');
+                } else {
+                    video.pause();
+                    playIndicator?.classList.add('show');
+                }
+            }
+
+            function getFilterState() {
+                return {
+                    creator: creatorFilter.value.trim(),
+                    q: searchFilter.value.trim(),
+                };
+            }
+
+            function buildVideosApiUrl() {
+                const params = new URLSearchParams();
+                const state = getFilterState();
+                if (state.creator) params.set('creator', state.creator);
+                if (state.q) params.set('q', state.q);
+                const qs = params.toString();
+                return qs ? `/api/videos?${qs}` : '/api/videos';
+            }
+
+            async function fetchCreators() {
+                try {
+                    const response = await fetch('/api/creators');
+                    if (!response.ok) return;
+                    const data = await response.json();
+                    creatorFilter.innerHTML = '<option value="">All creators</option>';
+                    data.creators.forEach(creator => {
+                        const opt = document.createElement('option');
+                        opt.value = creator;
+                        opt.textContent = `@${creator}`;
+                        creatorFilter.appendChild(opt);
+                    });
+                } catch (_) {
+                    // Best effort only; viewer still works without creator options.
+                }
+            }
+
+            function showFilteredEmptyState() {
+                feedContainer.innerHTML = `
+                    <div class="filtered-empty">
+                        <h2>No results for current filter</h2>
+                        <p>Try another creator or clear the search query.</p>
+                    </div>
+                `;
+            }
+
+            async function refreshFeed() {
+                try {
+                    const response = await fetch(buildVideosApiUrl());
+                    if (!response.ok) throw new Error('Network response was not ok');
+                    const data = await response.json();
+                    videosList = data.videos;
+
+                    feedContainer.innerHTML = '';
+                    if (feedObserver) {
+                        feedObserver.disconnect();
+                        feedObserver = null;
+                    }
+
+                    if (videosList.length === 0) {
+                        showFilteredEmptyState();
+                        updateCounter(0);
+                        return;
+                    }
+
+                    renderVideos();
+                    setupIntersectionObserver();
+                    updateCounter(1);
+                    scrollToIndex(1);
+                } catch (error) {
+                    console.error('Error refreshing feed:', error);
+                }
+            }
 
             // 1. Fetch the video list from API
             async function fetchVideos() {
                 try {
-                    const response = await fetch('/api/videos');
+                    const response = await fetch(buildVideosApiUrl());
                     if (!response.ok) throw new Error('Network response was not ok');
                     const data = await response.json();
                     videosList = data.videos;
@@ -300,7 +601,60 @@
                     loadingScreen.style.display = 'none';
                     renderVideos();
                     setupIntersectionObserver();
+                    viewerControls.style.display = 'flex';
+                    viewerHint.style.display = 'block';
+                    filterPanel.style.display = 'flex';
+                    updateCounter(1);
+                    syncMuteButton();
                 }, 500); // Wait for fade out
+            });
+
+            filterApply.addEventListener('click', () => {
+                refreshFeed();
+            });
+
+            filterClear.addEventListener('click', () => {
+                creatorFilter.value = '';
+                searchFilter.value = '';
+                refreshFeed();
+            });
+
+            searchFilter.addEventListener('keydown', (event) => {
+                if (event.key === 'Enter') {
+                    event.preventDefault();
+                    refreshFeed();
+                }
+            });
+
+            muteToggle.addEventListener('click', () => {
+                isMuted = !isMuted;
+                setMutedForAllVideos();
+                syncMuteButton();
+            });
+
+            fullscreenToggle.addEventListener('click', () => {
+                toggleFullscreen();
+            });
+
+            document.addEventListener('keydown', (event) => {
+                if (loadingScreen.style.display !== 'none') return;
+
+                if (event.key === 'ArrowDown') {
+                    event.preventDefault();
+                    scrollToIndex(currentIndex + 1);
+                } else if (event.key === 'ArrowUp') {
+                    event.preventDefault();
+                    scrollToIndex(currentIndex - 1);
+                } else if (event.key === ' ' || event.code === 'Space') {
+                    event.preventDefault();
+                    toggleCurrentVideoPlayback();
+                } else if (event.key.toLowerCase() === 'm') {
+                    isMuted = !isMuted;
+                    setMutedForAllVideos();
+                    syncMuteButton();
+                } else if (event.key.toLowerCase() === 'f') {
+                    toggleFullscreen();
+                }
             });
 
             // Parse URL into meaningful creator and title
@@ -342,6 +696,7 @@
 
                     const container = document.createElement('div');
                     container.className = 'video-container';
+                    container.dataset.index = String(index + 1);
 
                     // The media element (video or image)
                     let mediaElement;
@@ -405,10 +760,15 @@
                     threshold: 0.6 // Trigger when 60% of the video is visible
                 };
 
-                const observer = new IntersectionObserver((entries) => {
+                feedObserver = new IntersectionObserver((entries) => {
                     entries.forEach(entry => {
                         const video = entry.target.querySelector('video');
                         const playIndicator = entry.target.querySelector('.play-pause-indicator');
+                        const entryIndex = Number(entry.target.dataset.index || '1');
+
+                        if (entry.isIntersecting) {
+                            updateCounter(entryIndex);
+                        }
 
                         if (!video) return;
 
@@ -434,7 +794,7 @@
 
                 // Observe all video containers
                 document.querySelectorAll('.video-container').forEach(container => {
-                    observer.observe(container);
+                    feedObserver.observe(container);
                 });
             }
 
@@ -450,6 +810,7 @@
             }
 
             // Kickoff
+            fetchCreators();
             fetchVideos();
         });
     </script>
