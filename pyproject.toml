@@ -18,19 +18,19 @@ classifiers = [
   "License :: OSI Approved :: MIT License",
   "Operating System :: OS Independent",
 ]
+dependencies = [
+  "playwright",
+  "yt-dlp",
+  "playwright-stealth",
+  "fastapi",
+  "uvicorn",
+  "pymongo",
+  "rich",
+]
 
 [project.urls]
 "Source" = "https://github.com/fervidos/TikTok-Account-Downloader"
 "Tracker" = "https://github.com/fervidos/TikTok-Account-Downloader/issues"
-
-[project.dependencies]
-playwright = "*"
-yt-dlp = "*"
-playwright-stealth = "*"
-fastapi = "*"
-uvicorn = "*"
-pymongo = "*"
-rich = "*"
 
 [project.optional-dependencies]
 viewer = ["fastapi", "uvicorn"]
