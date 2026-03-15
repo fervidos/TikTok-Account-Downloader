@@ -2,360 +2,169 @@
   <img src="https://github.com/fervidos/TikTok-Account-Downloader/raw/main/assets/banner.png" alt="TikTok Account Downloader Banner" width="800"/>
 </p>
 
-<p align="center">
-  <a href="https://github.com/fervidos/TikTok-Account-Downloader/stargazers">
-    <img src="https://img.shields.io/github/stars/fervidos/TikTok-Account-Downloader?style=for-the-badge&color=ff0050"/>
-  </a>
-  <a href="https://github.com/fervidos/TikTok-Account-Downloader/forks">
-    <img src="https://img.shields.io/github/forks/fervidos/TikTok-Account-Downloader?style=for-the-badge&color=ff7300"/>
-  </a>
-  <a href="https://github.com/fervidos/TikTok-Account-Downloader/issues">
-    <img src="https://img.shields.io/github/issues/fervidos/TikTok-Account-Downloader?style=for-the-badge&color=00aaff"/>
-  </a>
-</p>
-
-<p align="center">
-  <img src="https://github.com/fervidos/TikTok-Account-Downloader/actions/workflows/python-package.yml/badge.svg"/>
-  <img src="https://img.shields.io/badge/python-3.10+-blue?style=for-the-badge&logo=python&logoColor=white"/>
-  <img src="https://img.shields.io/badge/license-MIT-green?style=for-the-badge"/>
-</p>
-
----
-
 # TikTok Account Downloader
 
-> **Archive entire TikTok profiles — including private, age-restricted, and locked content.**
+Archive TikTok profiles with Playwright for scanning and yt-dlp for downloads. The tool supports public profiles, authenticated access through cookies or browser extraction, optional MongoDB tracking, and a small local viewer for browsing saved files.
 
-A powerful archiving tool built with **Playwright + yt-dlp** that automatically scrolls profiles, collects every video, and downloads them in the **highest available quality**.
+## What it does
 
-Perfect for researchers, archivists, or anyone who wants to keep backups of TikTok accounts.
+- Scans a full TikTok profile and collects video URLs
+- Downloads media with yt-dlp in the best available format
+- Supports cookies for private, friends-only, or age-restricted content
+- Can skip repeat work with MongoDB-backed tracking
+- Includes a FastAPI viewer for local browsing
 
----
-
-# Table of Contents
-
-- Features
-- Quick Start
-- Usage
-- Cookies (Private Content)
-- Local Video Browser
-- FAQ
-- Contributing
-- License
-
----
-
-# Features
-
-**Full Profile Archiving**
-- Automatically scrolls TikTok profiles
-- Collects every video on the account
-
-**Best Quality Downloads**
-- Uses `yt-dlp`
-- Downloads **bestvideo + bestaudio**
-
-**Private / Restricted Content**
-- Supports cookies from browsers
-- Works with:
-  - private accounts
-  - friends-only videos
-  - age-restricted content
-
-**Smart Caching (Optional)**
-- MongoDB support
-- Skips already-downloaded videos
-
-**Built-in Video Viewer**
-- Local web interface for browsing downloaded videos
-
-**Safe Testing**
-- `--dry-run` preview mode
-- Download limits
-
-**Actively Maintained**
-- Uses Playwright to adapt to TikTok layout changes
-
----
-
-# Quick Start (3 minutes)
-
-## 1. Clone the repository
+## Quick start
 
 ```bash
 git clone https://github.com/fervidos/TikTok-Account-Downloader.git
 cd TikTok-Account-Downloader
-```
-
-## 2. Create virtual environment
-
-```bash
 python -m venv .venv
 ```
 
-Activate it:
+Activate the virtual environment.
 
-**Windows**
+Windows:
 
 ```bash
 .venv\Scripts\activate
 ```
 
-**Linux / macOS**
+Linux or macOS:
 
 ```bash
 source .venv/bin/activate
 ```
 
-## 3. Install dependencies
+Install dependencies and Chromium for Playwright:
 
 ```bash
 pip install -r requirements.txt
-```
-
-## 4. Install Playwright browser
-
-```bash
 python -m playwright install chromium
 ```
 
-## 5. Run the downloader
+Run a first scan:
 
 ```bash
 python -m tiktok_account_downloader.cli https://www.tiktok.com/@username
 ```
 
-Or if installed as a package:
+If installed as a package, you can also use:
 
 ```bash
 tiktok-account-downloader https://www.tiktok.com/@username
 ```
 
-Videos will appear in:
+## Common usage
 
-```
-downloads/_kept/
-```
-
-Test without downloading:
-
-```bash
---dry-run
-```
-
----
-
-# Usage
-
-View all options:
+Show help:
 
 ```bash
 tiktok-account-downloader --help
 ```
 
-## Popular Flags
-
-| Flag | Description |
-|-----|-------------|
-| `--dry-run` | Scan profile without downloading |
-| `--limit N` | Stop after N videos |
-| `--output DIR` | Custom download directory |
-| `--cookies-file FILE` | Use Netscape cookies file |
-| `--browser chrome` | Load cookies from browser |
-| `--mongo-uri URI` | Enable MongoDB caching |
-| `--headless false` | Show browser window |
-| `--slow-mo 300` | Delay actions (helps avoid rate limits) |
-
-Example:
+Dry run without downloading:
 
 ```bash
-tiktok-account-downloader https://www.tiktok.com/@privateacc \
-  --cookies-file cookies.txt \
-  --limit 200 \
-  --mongo-uri mongodb://localhost:27017/tiktok \
-  --output backups/privateacc
+tiktok-account-downloader @username --dry-run
 ```
 
----
-
-# Cookies (Private / Restricted Videos)
-
-TikTok requires authentication for many accounts.
-
-## Option 1 — cookies.txt (recommended)
-
-1. Install a browser extension such as:
-   - Cookie Editor
-   - EditThisCookie
-
-2. Export cookies from:
-
-```
-https://www.tiktok.com
-```
-
-3. Save them as:
-
-```
-cookies.txt
-```
-
-4. Run:
+Limit the run size:
 
 ```bash
-tiktok-account-downloader --cookies-file cookies.txt https://www.tiktok.com/@username
+tiktok-account-downloader @username --limit 50
 ```
 
-Example template:
-
-```
-cookies.example.txt
-```
-
----
-
-## Option 2 — Load directly from browser
+Use a custom output folder:
 
 ```bash
-tiktok-account-downloader --browser chrome https://www.tiktok.com/@username
+tiktok-account-downloader @username --output downloads
 ```
 
-Supported browsers:
+Run with browser cookies:
 
-- Chrome
-- Firefox
-- Edge
-- Brave
-- Opera
+```bash
+tiktok-account-downloader @username --browser chrome
+```
 
----
+Enable MongoDB tracking and two concurrent downloads:
 
-# Local Video Browser
+```bash
+tiktok-account-downloader @username --mongo-uri mongodb://localhost:27017/tiktok -c 2
+```
 
-After downloading videos you can launch a **simple web viewer**.
+Run local diagnostics:
+
+```bash
+tiktok-account-downloader --doctor
+```
+
+By default, downloads are stored under `downloads/<username>`.
+
+## Authenticated access
+
+TikTok often requires authentication for restricted profiles.
+
+Use a Netscape-format cookies file:
+
+```bash
+tiktok-account-downloader @username --cookies-file src/cookies.txt
+```
+
+The repository includes a sample at `src/cookies.example.txt`.
+
+You can also import cookies directly from an installed browser with `--browser`. Supported values are `chrome`, `firefox`, `edge`, `opera`, `safari`, `vivaldi`, and `brave`.
+
+## Local viewer
+
+Start the bundled viewer:
 
 ```bash
 python viewer.py
 ```
 
-Open in browser:
+Then open `http://127.0.0.1:8000`.
 
-```
-http://127.0.0.1:8000
-```
-
-Change the video directory:
-
-Linux / macOS:
-
-```bash
-export TIKTOK_SCANNER_KEPT_DIR=/path/to/videos
-```
+To point the viewer at a different library, set one of these environment variables before starting it:
 
 Windows:
 
 ```bash
-set TIKTOK_SCANNER_KEPT_DIR=C:\Videos
+set TIKTOK_ACCOUNT_DOWNLOADER_KEPT_DIR=C:\Videos
 ```
 
-Then run again:
+Linux or macOS:
 
 ```bash
-python viewer.py
+export TIKTOK_ACCOUNT_DOWNLOADER_KEPT_DIR=/path/to/videos
 ```
 
----
+The viewer also accepts the legacy `TIKTOK_SCANNER_KEPT_DIR` name.
 
-# FAQ
+## Troubleshooting
 
-### Videos are missing
+Missing videos usually means TikTok throttled the session. Try smaller runs, authenticated access, or rerunning later.
 
-TikTok rate limits aggressive scrolling.
-
-Try:
-
-```bash
---slow-mo 500 --headless false
-```
-
-Or split downloads into multiple runs.
-
----
-
-### yt-dlp fails or quality is low
-
-Update yt-dlp:
+If yt-dlp fails, update it:
 
 ```bash
 pip install -U yt-dlp
 ```
 
----
-
-### Playwright crashes
-
-Reinstall browsers:
+If Playwright has browser issues, reinstall Chromium:
 
 ```bash
-python -m playwright install --with-deps chromium
+python -m playwright install chromium
 ```
 
----
+## Legal
 
-### MongoDB caching not working
+Use this tool only where you have the right to access and archive the content. Respect TikTok's terms, copyright, and the content owner's rights.
 
-Check that your `MONGO_URI` contains the correct credentials and database name.
+## Contributing
 
----
+Pull requests are welcome. Keep changes focused, and include tests where practical.
 
-# Legal Notice
+## License
 
-This tool is intended for **personal archiving and research purposes**.
-
-Always respect:
-
-- TikTok Terms of Service
-- Copyright laws
-- Content ownership
-
----
-
-# Contributing
-
-Pull requests are welcome.
-
-1. Fork the repo  
-2. Clone your fork  
-3. Install dev dependencies  
-
-```bash
-pip install -e ".[dev]"
-```
-
-4. Make changes  
-5. Add tests if possible (`pytest`)  
-6. Submit a pull request  
-
-### Suggested Improvements
-
-- Resume interrupted downloads
-- Support photo/slideshow posts
-- Better progress statistics
-- Docker support
-- Single-file executable
-
----
-
-# License
-
-MIT License © 2026 fervidos
-
----
-
-<p align="center">
-Made with ❤️ for archivists, researchers, and data hoarders.
-</p>
-
-<p align="center">
-⭐ Star the project if it saved you time.
-</p>
+MIT
