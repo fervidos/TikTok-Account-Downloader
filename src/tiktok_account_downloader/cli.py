@@ -153,6 +153,13 @@ def main(argv: List[str] | None = None) -> int:
     if match:
         username = match.group(1)
     user_output_dir = os.path.join(args.output, username)
+    existing_check_dirs = [
+        user_output_dir,
+        os.path.join(args.output, "_trash", username),
+        os.path.join(args.output, "_kept", username),
+        os.path.join(args.output, "-trash", username),
+        os.path.join(args.output, "-kept", username),
+    ]
 
     downloader = TikTokAccountDownloader(
         profile_url,
@@ -161,6 +168,7 @@ def main(argv: List[str] | None = None) -> int:
         limit=args.limit,
         mongo_uri=args.mongo_uri,
         output_folder=user_output_dir,
+        existing_check_folders=existing_check_dirs,
         force_full_scan=args.force_full_scan,
     )
 
@@ -180,6 +188,7 @@ def main(argv: List[str] | None = None) -> int:
                 mongo_uri=args.mongo_uri,
                 concurrent_downloads=args.concurrent,
                 debug=args.debug,
+                existing_check_folders=existing_check_dirs,
             )
     else:
         console.print("[yellow]No videos found to download.[/yellow]")

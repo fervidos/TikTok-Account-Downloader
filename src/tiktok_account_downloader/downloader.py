@@ -4,7 +4,7 @@ from __future__ import annotations
 
 import os
 import threading
-from typing import Any, Dict, Iterable, List, Optional, Tuple
+from typing import Any, Dict, Iterable, List, Optional, Sequence, Tuple
 
 import yt_dlp
 from rich.console import Console
@@ -21,6 +21,7 @@ from .utils import (
     clean_tiktok_url,
     extract_tiktok_video_id,
     file_exists_for_video,
+    file_exists_for_video_any,
     is_probably_tiktok_video_url,
     with_tiktok_query_params,
     parse_netscape_cookies,
@@ -29,6 +30,26 @@ from .utils import (
 from .db import get_db_collection
 
 console = Console()
+
+
+def _is_expected_unavailable_error(message: str) -> bool:
+    """Return True for common non-fatal extractor failures we should skip.
+
+    These usually mean removed/private/geoblocked posts or unsupported post
+    types for the current yt-dlp extractor build.
+    """
+    lower = (message or "").lower()
+    patterns = [
+        "no video formats found",
+        "this video is unavailable",
+        "video unavailable",
+        "private video",
+        "login required",
+        "not available in your region",
+        "geo restricted",
+        "unable to download webpage",
+    ]
+    return any(p in lower for p in patterns)
 
 
 class _RichYtDlpLogger:
@@ -50,6 +71,8 @@ class _RichYtDlpLogger:
                 return
             if "invalid netscape format cookies file" in lower:
                 return
+            if _is_expected_unavailable_error(msg):
+                return
             console.print(f"[red]{msg}[/red]")
 
     def info(self, msg):
@@ -65,6 +88,7 @@ def download_videos(
     concurrent_downloads: int = 1,
     debug: bool = False,
     extra_http_headers: Optional[Dict[str, str]] = None,
+    existing_check_folders: Optional[Sequence[str]] = None,
 ) -> None:
     """Download each URL with ``yt-dlp`` and display progress using Rich.
 
@@ -79,6 +103,7 @@ def download_videos(
         return
 
     os.makedirs(output_folder, exist_ok=True)
+    check_folders = list(existing_check_folders or [output_folder])
 
     # Pre-filter by existing files on disk (even if MongoDB isn't used)
     url_map: List[Tuple[str, Optional[str]]] = []
@@ -91,7 +116,7 @@ def download_videos(
         url_map.append((url, video_id))
 
     for url, vid in url_map:
-        if vid and file_exists_for_video(output_folder, vid):
+        if vid and file_exists_for_video_any(check_folders, vid):
             skipped += 1
             continue
         filtered.append(url)
@@ -108,7 +133,7 @@ def download_videos(
         db_collection = get_db_collection(mongo_uri, fail_fast=False)
 
         # pre-filter against DB (only for videos that are not already on disk)
-        url_map = [(url, vid) for url, vid in url_map if vid and not file_exists_for_video(output_folder, vid)]
+        url_map = [(url, vid) for url, vid in url_map if vid and not file_exists_for_video_any(check_folders, vid)]
         video_ids = [vid for _, vid in url_map if vid]
 
         existing: set = set()
@@ -122,7 +147,7 @@ def download_videos(
         filtered = []
         skipped = 0
         for url, vid in url_map:
-            if vid and vid in existing and file_exists_for_video(output_folder, vid):
+            if vid and vid in existing and file_exists_for_video_any(check_folders, vid):
                 skipped += 1
                 continue
             filtered.append(url)
@@ -166,6 +191,12 @@ def download_videos(
         'socket_timeout': 30,
         'http_headers': default_headers,
         'noplaylist': True,
+        'extractor_args': {
+            # Prefer app API fallbacks used by yt-dlp's TikTok extractor.
+            'tiktok': {
+                'app_info': ['musical_ly/35.1.3/2023501030/0'],
+            }
+        },
     }
 
     if browser:
@@ -257,6 +288,7 @@ def download_videos(
                 # try again with same opts (headers enabled) and allow_unplayable_formats
                 fallback_opts = dict(ydl_opts)
                 fallback_opts['allow_unplayable_formats'] = True
+                fallback_opts['format'] = 'best'
                 try:
                     with yt_dlp.YoutubeDL(fallback_opts) as ydl:
                         info = ydl.extract_info(fallback, download=True)
@@ -266,6 +298,9 @@ def download_videos(
                     if debug:
                         console.print(f"[red]Fallback extractor also failed: {e2}[/red]")
                     # continue to final SKIP below
+
+            if _is_expected_unavailable_error(msg):
+                return (cleaned, False, "SKIP: Unavailable/blocked/non-video post")
 
             if debug:
                 console.print(f"[red]Error downloading {cleaned}: {msg}[/red]")

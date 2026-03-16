@@ -3,7 +3,7 @@
 import os
 import re
 import tempfile
-from typing import Any, Dict, List, Optional
+from typing import Any, Dict, List, Optional, Sequence
 from urllib.parse import urlsplit, urlunsplit, urlencode, parse_qsl
 
 
@@ -167,4 +167,12 @@ def file_exists_for_video(output_folder: str, video_id: str) -> bool:
         if video_id in filename:
             if any(filename.lower().endswith(ext) for ext in extensions):
                 return True
+    return False
+
+
+def file_exists_for_video_any(output_folders: Sequence[str], video_id: str) -> bool:
+    """Return True if ``video_id`` exists as a completed media file in any folder."""
+    for folder in output_folders:
+        if file_exists_for_video(folder, video_id):
+            return True
     return False

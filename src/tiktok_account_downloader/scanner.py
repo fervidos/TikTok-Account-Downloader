@@ -2,8 +2,9 @@
 
 from __future__ import annotations
 
+import os
 import sys
-from typing import List, Optional, Set
+from typing import List, Optional, Sequence, Set
 
 from playwright.async_api import async_playwright
 from playwright_stealth import Stealth
@@ -11,7 +12,7 @@ from rich.console import Console
 from rich.progress import Progress, SpinnerColumn, TextColumn
 from rich.prompt import Prompt
 
-from .utils import parse_netscape_cookies, file_exists_for_video, extract_tiktok_video_id
+from .utils import parse_netscape_cookies, file_exists_for_video_any, extract_tiktok_video_id
 from .db import get_db_collection  # we'll create a small db module
 
 console = Console()
@@ -49,6 +50,7 @@ class TikTokAccountDownloader:
         limit: int = 0,
         mongo_uri: Optional[str] = None,
         output_folder: Optional[str] = None,
+        existing_check_folders: Optional[Sequence[str]] = None,
         force_full_scan: bool = False,
     ) -> None:
         self.profile_url = profile_url
@@ -57,6 +59,7 @@ class TikTokAccountDownloader:
         self.limit = limit
         self.mongo_uri = mongo_uri
         self.output_folder = output_folder
+        self.existing_check_folders = list(existing_check_folders or ([] if not output_folder else [output_folder]))
         self.force_full_scan = force_full_scan
         self.video_urls: Set[str] = set()
         self.scanned_urls: Set[str] = set()
@@ -170,8 +173,8 @@ class TikTokAccountDownloader:
 
                                 already_downloaded = False
                                 if vid:
-                                    already_downloaded = file_exists_for_video(
-                                        self.output_folder or "", vid
+                                    already_downloaded = file_exists_for_video_any(
+                                        self.existing_check_folders, vid
                                     )
 
                                 if already_downloaded:
