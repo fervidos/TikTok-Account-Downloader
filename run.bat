@@ -173,13 +173,16 @@ if "%ARG_FULLSCAN%"=="1" set "FULLSCAN_FLAG=--force-full-scan"
 echo Running from: "%APP_DIR%"
 pushd "%APP_DIR%"
 
-:: Run (quote paths/args to preserve spaces)
-set CMD=%PYTHON_EXE% src\main.py "%ARG_URL%" %HEADLESS_FLAG% %FULLSCAN_FLAG% -c %ARG_CONCURRENT%
-if not "%ARG_COOKIES_FILE%"=="" set CMD=%CMD% --cookies-file "%ARG_COOKIES_FILE%"
-if not "%ARG_MONGO_URI%"=="" set CMD=%CMD% --mongo-uri "%ARG_MONGO_URI%"
-
-REM echo %CMD%
-%CMD%
+:: Run (call Python directly so quoted paths with spaces are handled correctly)
+if not "%ARG_COOKIES_FILE%"=="" if not "%ARG_MONGO_URI%"=="" (
+  "%PYTHON_EXE%" src\main.py "%ARG_URL%" %HEADLESS_FLAG% %FULLSCAN_FLAG% -c %ARG_CONCURRENT% --cookies-file "%ARG_COOKIES_FILE%" --mongo-uri "%ARG_MONGO_URI%"
+) else if not "%ARG_COOKIES_FILE%"=="" (
+  "%PYTHON_EXE%" src\main.py "%ARG_URL%" %HEADLESS_FLAG% %FULLSCAN_FLAG% -c %ARG_CONCURRENT% --cookies-file "%ARG_COOKIES_FILE%"
+) else if not "%ARG_MONGO_URI%"=="" (
+  "%PYTHON_EXE%" src\main.py "%ARG_URL%" %HEADLESS_FLAG% %FULLSCAN_FLAG% -c %ARG_CONCURRENT% --mongo-uri "%ARG_MONGO_URI%"
+) else (
+  "%PYTHON_EXE%" src\main.py "%ARG_URL%" %HEADLESS_FLAG% %FULLSCAN_FLAG% -c %ARG_CONCURRENT%
+)
 
 popd
 
