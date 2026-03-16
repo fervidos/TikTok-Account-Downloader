@@ -1,0 +1,11 @@
+playwright
+yt-dlp
+playwright-stealth
+fastapi
+uvicorn
+pymongo
+rich
+
+[viewer]
+fastapi
+uvicorn

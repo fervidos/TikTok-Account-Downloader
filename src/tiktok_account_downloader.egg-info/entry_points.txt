@@ -1,0 +1,3 @@
+[console_scripts]
+tiktok-account-downloader = tiktok_account_downloader.cli:main
+tiktokdownloader = tiktok_account_downloader.cli:main

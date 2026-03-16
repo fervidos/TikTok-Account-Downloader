@@ -27,6 +27,9 @@ set "PYTHON_EXE=python"
 if exist "%APP_DIR%\venv\Scripts\python.exe" (
   set "PYTHON_EXE=%APP_DIR%\venv\Scripts\python.exe"
 )
+if exist "%APP_DIR%\.venv\Scripts\python.exe" (
+  set "PYTHON_EXE=%APP_DIR%\.venv\Scripts\python.exe"
+)
 
 :: Load optional .env file (supports MONGO_URI, etc.)
 if exist "%APP_DIR%\.env" (
@@ -47,7 +50,7 @@ echo.
 echo Usage: %~n0 [URL^|@username] [--concurrent N] [--headless] [--no-headless] [--force-full-scan] [--no-full-scan] [--cookies-file PATH] [--mongo-uri URI]
 echo.
 echo If no arguments are provided, this script will prompt for values.
-echo Defaults: --concurrent 3, non-headless mode, early-stop scan enabled.
+echo Defaults: --concurrent 3, headless mode, early-stop scan enabled.
 echo.
 echo This script will load an optional .env file from the repo root (if present).
 echo You can set MONGO_URI via .env or environment variable to enable database tracking.

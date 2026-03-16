@@ -38,3 +38,9 @@ viewer = ["fastapi", "uvicorn"]
 [project.scripts]
 tiktok-account-downloader = "tiktok_account_downloader.cli:main"
 tiktokdownloader = "tiktok_account_downloader.cli:main"
+
+[tool.setuptools]
+package-dir = {"" = "src"}
+
+[tool.setuptools.packages.find]
+where = ["src"]
