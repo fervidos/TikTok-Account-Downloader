@@ -22,14 +22,8 @@ if not exist "%APP_DIR%\src\main.py" (
   exit /b 1
 )
 
-:: Prefer bundled venv python if available
+:: Always use system Python (no virtual environment auto-detection)
 set "PYTHON_EXE=python"
-if exist "%APP_DIR%\venv\Scripts\python.exe" (
-  set "PYTHON_EXE=%APP_DIR%\venv\Scripts\python.exe"
-)
-if exist "%APP_DIR%\.venv\Scripts\python.exe" (
-  set "PYTHON_EXE=%APP_DIR%\.venv\Scripts\python.exe"
-)
 
 :: Load optional .env file (supports MONGO_URI, etc.)
 if exist "%APP_DIR%\.env" (
