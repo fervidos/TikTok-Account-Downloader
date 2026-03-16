@@ -41,7 +41,27 @@ def is_probably_tiktok_video_url(url: Optional[str]) -> bool:
     if host != "tiktok.com":
         return False
     path = parts.path or ""
-    return bool(re.search(r"^/@[a-zA-Z0-9_.-]+/video/\d+$", path))
+    return bool(re.search(r"^/@[a-zA-Z0-9_.-]+/video/\d+/?$", path))
+
+
+def extract_tiktok_video_id(url: Optional[str]) -> Optional[str]:
+    """Extract a TikTok numeric video ID from a URL if present.
+
+    Accepts canonical forms with or without a trailing slash.
+    """
+    cleaned = clean_tiktok_url(url)
+    if not cleaned:
+        return None
+    try:
+        path = (urlsplit(cleaned).path or "").strip()
+    except Exception:
+        return None
+
+    # Match /@user/video/<digits> and optionally a trailing slash.
+    match = re.search(r"/@[a-zA-Z0-9_.-]+/video/(\d+)(?:/)?$", path)
+    if match:
+        return match.group(1)
+    return None
 
 
 def with_tiktok_query_params(url: str, extra_params: Dict[str, Any]) -> str:

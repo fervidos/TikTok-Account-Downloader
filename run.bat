@@ -130,7 +130,7 @@ if "%ARG_URL%"=="" (
 
 :: Default settings (no prompting)
 if "%ARG_CONCURRENT%"=="" set "ARG_CONCURRENT=3"
-set "ARG_HEADLESS=1"
+if "%ARG_HEADLESS%"=="" set "ARG_HEADLESS=1"
 
 :: Ask user if full scan should be enabled when not explicitly provided
 if "%ARG_FULLSCAN%"=="" (

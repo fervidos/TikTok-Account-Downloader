@@ -11,7 +11,7 @@ from rich.console import Console
 from rich.progress import Progress, SpinnerColumn, TextColumn
 from rich.prompt import Prompt
 
-from .utils import parse_netscape_cookies, file_exists_for_video
+from .utils import parse_netscape_cookies, file_exists_for_video, extract_tiktok_video_id
 from .db import get_db_collection  # we'll create a small db module
 
 console = Console()
@@ -149,10 +149,7 @@ class TikTokAccountDownloader:
 
                             vids_to_check: List[str] = []
                             for u in new_unseen_urls:
-                                try:
-                                    vid = u.split("/")[-1].split('?')[0]
-                                except Exception:
-                                    vid = None
+                                vid = extract_tiktok_video_id(u)
                                 if vid:
                                     vids_to_check.append(vid)
 
@@ -169,10 +166,7 @@ class TikTokAccountDownloader:
 
                             valid_new_urls: List[str] = []
                             for u in new_unseen_urls:
-                                try:
-                                    vid = u.split("/")[-1].split('?')[0]
-                                except Exception:
-                                    vid = None
+                                vid = extract_tiktok_video_id(u)
 
                                 already_downloaded = False
                                 if vid:

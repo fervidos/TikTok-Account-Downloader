@@ -19,6 +19,7 @@ from rich.progress import (
 
 from .utils import (
     clean_tiktok_url,
+    extract_tiktok_video_id,
     file_exists_for_video,
     is_probably_tiktok_video_url,
     with_tiktok_query_params,
@@ -62,6 +63,8 @@ def download_videos(
     browser: Optional[str] = None,
     mongo_uri: Optional[str] = None,
     concurrent_downloads: int = 1,
+    debug: bool = False,
+    extra_http_headers: Optional[Dict[str, str]] = None,
 ) -> None:
     """Download each URL with ``yt-dlp`` and display progress using Rich.
 
@@ -70,6 +73,7 @@ def download_videos(
     """
 
     video_urls = list(video_urls)
+    total_input_urls = len(video_urls)
     if not video_urls:
         console.print("[yellow]No videos to download.[/yellow]")
         return
@@ -80,13 +84,10 @@ def download_videos(
     url_map: List[Tuple[str, Optional[str]]] = []
     filtered: List[str] = []
     skipped = 0
+    skipped_existing_on_disk = 0
 
     for url in video_urls:
-        video_id = None
-        try:
-            video_id = url.split("/")[-1].split("?")[0]
-        except Exception:
-            pass
+        video_id = extract_tiktok_video_id(url)
         url_map.append((url, video_id))
 
     for url, vid in url_map:
@@ -96,6 +97,7 @@ def download_videos(
         filtered.append(url)
 
     if skipped:
+        skipped_existing_on_disk += skipped
         console.print(f"[bold green]Skipped {skipped} videos already downloaded and present on disk.[/bold green]")
 
     video_urls = filtered
@@ -126,6 +128,7 @@ def download_videos(
             filtered.append(url)
 
         if skipped:
+            skipped_existing_on_disk += skipped
             console.print(f"[bold green]Skipped {skipped} videos already downloaded and present on disk (via DB).[/bold green]")
 
         video_urls = filtered
@@ -142,17 +145,27 @@ def download_videos(
         if parsed:
             effective_cookiefile = write_netscape_cookie_file(parsed)
 
+    # conservative default headers to make TikTok extractor behave more like a browser
+    default_headers = {
+        'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/115.0 Safari/537.36',
+        'Referer': 'https://www.tiktok.com/',
+    }
+    if extra_http_headers:
+        default_headers.update(extra_http_headers)
+
     ydl_opts: Dict[str, Any] = {
         'outtmpl': os.path.join(output_folder, '%(uploader)s_%(upload_date)s_%(id)s_%(title).50s.%(ext)s'),
         'ignoreerrors': True,
         'format': 'bestvideo+bestaudio/best',
-        'quiet': True,
-        'no_warnings': True,
+        'quiet': not debug,
+        'no_warnings': not debug,
         'logger': _RichYtDlpLogger(),
         'retries': 3,
         'fragment_retries': 3,
         'extractor_retries': 3,
         'socket_timeout': 30,
+        'http_headers': default_headers,
+        'noplaylist': True,
     }
 
     if browser:
@@ -217,6 +230,7 @@ def download_videos(
 
     def process_url(url: str) -> Tuple[str, bool, Optional[str]]:
         cleaned = clean_tiktok_url(url)
+        video_id = extract_tiktok_video_id(cleaned)
         if not cleaned:
             return (url, False, "SKIP: Empty URL")
         if not cleaned.startswith("http"):
@@ -228,20 +242,33 @@ def download_videos(
                 info = ydl.extract_info(cleaned, download=True)
                 if info:
                     return (cleaned, True, None)
+                if video_id and file_exists_for_video(output_folder, video_id):
+                    return (cleaned, True, None)
         except Exception as e:
             msg = str(e) if e is not None else "Unknown error"
             lower = msg.lower()
+            # Common blockers: IP blocked / page unavailable
             if "your ip address is blocked" in lower or "page not available" in lower:
                 return (cleaned, False, f"SKIP: {msg}")
-            if "list index out of range" in lower:
+
+            # Try common TikTok extractor fallback when webpage extraction fails
+            if "unable to extract webpage video data" in lower or "list index out of range" in lower:
                 fallback = with_tiktok_query_params(cleaned, {"is_copy_url": "1", "is_from_webapp": "v1", "lang": "en"})
+                # try again with same opts (headers enabled) and allow_unplayable_formats
+                fallback_opts = dict(ydl_opts)
+                fallback_opts['allow_unplayable_formats'] = True
                 try:
-                    with yt_dlp.YoutubeDL(ydl_opts) as ydl:
+                    with yt_dlp.YoutubeDL(fallback_opts) as ydl:
                         info = ydl.extract_info(fallback, download=True)
                         if info:
                             return (fallback, True, None)
                 except Exception as e2:
-                    return (cleaned, False, f"SKIP: {e2}")
+                    if debug:
+                        console.print(f"[red]Fallback extractor also failed: {e2}[/red]")
+                    # continue to final SKIP below
+
+            if debug:
+                console.print(f"[red]Error downloading {cleaned}: {msg}[/red]")
             return (cleaned, False, msg)
         return (cleaned, False, "SKIP: Unavailable/blocked (no info)")
 
@@ -274,10 +301,12 @@ def download_videos(
     table = Table(title="Scan & Download Summary", show_header=True, header_style="bold magenta")
     table.add_column("Metric", style="cyan")
     table.add_column("Value", style="green")
-    table.add_row("Total Scanned URLs", str(len(video_urls)))
-    table.add_row("Successfully Processed", str(success_count))
+    table.add_row("Total Scanned URLs", str(total_input_urls))
+    table.add_row("Successfully Downloaded", str(success_count))
+    if skipped_existing_on_disk > 0:
+        table.add_row("Already On Disk", f"[green]{skipped_existing_on_disk}[/green]")
     if skipped_count > 0:
-        table.add_row("Skipped", f"[yellow]{skipped_count}[/yellow]")
+        table.add_row("Skipped During Download", f"[yellow]{skipped_count}[/yellow]")
     if error_count > 0:
         table.add_row("Errors", f"[red]{error_count}[/red]")
     console.print(table)

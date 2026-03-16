@@ -86,7 +86,9 @@ def _run_doctor(cookies_path: str, output_dir: str, mongo_uri: str | None) -> in
 def main(argv: List[str] | None = None) -> int:
     parser = argparse.ArgumentParser(description="TikTok Account Downloader")
     parser.add_argument("url", nargs="?", help="TikTok Profile URL (e.g., https://www.tiktok.com/@username)")
-    parser.add_argument("--headless", action="store_true", help="Run browser in headless mode (default: False)", default=False)
+    parser.add_argument("--headless", dest="headless", action="store_true", help="Run browser in headless mode (default: True)")
+    parser.add_argument("--no-headless", dest="headless", action="store_false", help="Run browser with visible window")
+    parser.set_defaults(headless=True)
     parser.add_argument("--dry-run", action="store_true", help="Only scan and list videos without downloading")
     parser.add_argument("--force-full-scan", action="store_true", help="Do not stop scanning early even if previously downloaded videos are found", default=False)
     parser.add_argument("--output", default="downloads", help="Output directory for downloads")
@@ -99,6 +101,7 @@ def main(argv: List[str] | None = None) -> int:
     parser.add_argument("--cookies-file", default=None, help="Path to a Netscape-format cookies.txt file for scanning/downloading")
     parser.add_argument("--mongo-uri", default=os.getenv("MONGO_URI"), help="MongoDB Connection String for tracking downloaded videos")
     parser.add_argument("-c", "--concurrent", type=int, default=1, help="Number of concurrent downloads (default: 1)")
+    parser.add_argument("--debug", action="store_true", help="Enable debug logging for yt-dlp and extractor fallbacks")
     parser.add_argument("--doctor", action="store_true", help="Run local diagnostics and exit")
 
     args = parser.parse_args(argv)
@@ -176,6 +179,7 @@ def main(argv: List[str] | None = None) -> int:
                 browser=args.browser,
                 mongo_uri=args.mongo_uri,
                 concurrent_downloads=args.concurrent,
+                debug=args.debug,
             )
     else:
         console.print("[yellow]No videos found to download.[/yellow]")
