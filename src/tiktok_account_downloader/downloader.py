@@ -2,6 +2,8 @@
 
 from __future__ import annotations
 
+import contextlib
+import io
 import os
 import threading
 from typing import Any, Dict, Iterable, List, Optional, Sequence, Tuple
@@ -12,8 +14,8 @@ from rich.progress import (
     Progress,
     TextColumn,
     BarColumn,
-    DownloadColumn,
-    TransferSpeedColumn,
+    MofNCompleteColumn,
+    TaskProgressColumn,
     TimeRemainingColumn,
 )
 
@@ -50,6 +52,22 @@ def _is_expected_unavailable_error(message: str) -> bool:
         "unable to download webpage",
     ]
     return any(p in lower for p in patterns)
+
+
+def _normalize_failure_reason(message: str) -> str:
+    """Return a short, user-facing reason for a failed TikTok download."""
+    lower = (message or "").lower()
+    if _is_expected_unavailable_error(message):
+        return "Unavailable/blocked"
+    if "your ip address is blocked" in lower:
+        return "IP blocked"
+    if "page not available" in lower:
+        return "Page not available"
+    if "unable to extract webpage video data" in lower:
+        return "Extractor could not parse page"
+    if "list index out of range" in lower:
+        return "Extractor parsing error"
+    return "Unknown download error"
 
 
 class _RichYtDlpLogger:
@@ -172,7 +190,7 @@ def download_videos(
 
     # conservative default headers to make TikTok extractor behave more like a browser
     default_headers = {
-        'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/115.0 Safari/537.36',
+        'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/131.0.0.0 Safari/537.36',
         'Referer': 'https://www.tiktok.com/',
     }
     if extra_http_headers:
@@ -213,11 +231,10 @@ def download_videos(
     progress = Progress(
         TextColumn("[bold blue]{task.description}", justify="right"),
         BarColumn(bar_width=40),
-        "[progress.percentage]{task.percentage:>3.1f}%",
+        TaskProgressColumn(),
+        "[progress.percentage]{task.percentage:>5.1f}%",
         "•",
-        DownloadColumn(),
-        "•",
-        TransferSpeedColumn(),
+        MofNCompleteColumn(),
         "•",
         TimeRemainingColumn(),
         console=console,
@@ -225,37 +242,19 @@ def download_videos(
     progress.__enter__()
 
     overall_task = progress.add_task("Total Progress", total=len(video_urls))
-    active_downloads: Dict[str, int] = {}
     progress_lock = threading.Lock()
 
     def progress_hook(d: dict):
         video_id = d.get('info_dict', {}).get('id', 'unknown')
-        with progress_lock:
-            if d['status'] == 'downloading':
-                if video_id not in active_downloads:
-                    title = d.get('info_dict', {}).get('title', 'Unknown')
-                    display_title = title[:30] + '...' if len(title) > 30 else title
-                    task_id = progress.add_task(f"[cyan]{display_title}", total=d.get('total_bytes') or d.get('total_bytes_estimate', 0))
-                    active_downloads[video_id] = task_id
-                task_id = active_downloads[video_id]
-                progress.update(task_id, completed=d.get('downloaded_bytes', 0), total=d.get('total_bytes') or d.get('total_bytes_estimate', 0))
-            elif d['status'] == 'finished':
-                if video_id in active_downloads:
-                    task_id = active_downloads.pop(video_id)
-                    progress.update(task_id, completed=d.get('total_bytes', 100), description=f"[green]✓ {progress.tasks[task_id].description.replace('[cyan]', '')}")
-                    try:
-                        progress.remove_task(task_id)
-                    except Exception:
-                        pass
-                if db_collection is not None and video_id != 'unknown':
-                    try:
-                        db_collection.update_one(
-                            {"video_id": video_id},
-                            {"$set": {"video_id": video_id, "status": "downloaded"}},
-                            upsert=True,
-                        )
-                    except Exception:
-                        pass
+        if d.get('status') == 'finished' and db_collection is not None and video_id != 'unknown':
+            try:
+                db_collection.update_one(
+                    {"video_id": video_id},
+                    {"$set": {"video_id": video_id, "status": "downloaded"}},
+                    upsert=True,
+                )
+            except Exception:
+                pass
 
     ydl_opts['progress_hooks'] = [progress_hook]
 
@@ -268,46 +267,76 @@ def download_videos(
             return (cleaned, False, "SKIP: Invalid URL")
         if not is_probably_tiktok_video_url(cleaned):
             return (cleaned, False, "SKIP: Not a TikTok video URL")
+        class CapturingLogger:
+            def __init__(self):
+                self.errors = []
+            def debug(self, msg): pass
+            def warning(self, msg): pass
+            def error(self, msg):
+                if "ERROR:" in msg:
+                    lower = msg.lower()
+                    if "list index out of range" not in lower and "does not look like a netscape format" not in lower and "invalid netscape format" not in lower and not _is_expected_unavailable_error(msg):
+                        console.print(f"[red]{msg}[/red]")
+                self.errors.append(msg)
+            def info(self, msg): pass
+
+        local_logger = CapturingLogger()
+        local_ydl_opts = dict(ydl_opts)
+        local_ydl_opts['logger'] = local_logger
+
         try:
-            with yt_dlp.YoutubeDL(ydl_opts) as ydl:
+            with yt_dlp.YoutubeDL(local_ydl_opts) as ydl:
                 info = ydl.extract_info(cleaned, download=True)
-                if info:
-                    return (cleaned, True, None)
-                if video_id and file_exists_for_video(output_folder, video_id):
-                    return (cleaned, True, None)
+            if info:
+                return (cleaned, True, None)
+            if video_id and file_exists_for_video(output_folder, video_id):
+                return (cleaned, True, None)
+            
+            # If ignoreerrors=True, yt-dlp won't raise exceptions for extractor errors.
+            # We manually trigger them so the fallback extractor handles IP blocks.
+            if local_logger.errors:
+                raise Exception("\n".join(local_logger.errors))
+                
         except Exception as e:
             msg = str(e) if e is not None else "Unknown error"
+            stderr_text = "\n".join(local_logger.errors)
+            combined_msg = "\n".join(part for part in (msg, stderr_text) if part).strip()
+            reason = _normalize_failure_reason(combined_msg)
             lower = msg.lower()
             # Common blockers: IP blocked / page unavailable
             if "your ip address is blocked" in lower or "page not available" in lower:
-                return (cleaned, False, f"SKIP: {msg}")
+                return (cleaned, False, f"SKIP: {reason}")
 
             # Try common TikTok extractor fallback when webpage extraction fails
             if "unable to extract webpage video data" in lower or "list index out of range" in lower:
                 fallback = with_tiktok_query_params(cleaned, {"is_copy_url": "1", "is_from_webapp": "v1", "lang": "en"})
                 # try again with same opts (headers enabled) and allow_unplayable_formats
-                fallback_opts = dict(ydl_opts)
+                fallback_opts = dict(local_ydl_opts)
                 fallback_opts['allow_unplayable_formats'] = True
                 fallback_opts['format'] = 'best'
+                fallback_logger = CapturingLogger()
+                fallback_opts['logger'] = fallback_logger
                 try:
                     with yt_dlp.YoutubeDL(fallback_opts) as ydl:
                         info = ydl.extract_info(fallback, download=True)
-                        if info:
-                            return (fallback, True, None)
+                    if info:
+                        return (fallback, True, None)
                 except Exception as e2:
                     if debug:
                         console.print(f"[red]Fallback extractor also failed: {e2}[/red]")
                     # continue to final SKIP below
 
-            if _is_expected_unavailable_error(msg):
-                return (cleaned, False, "SKIP: Unavailable/blocked/non-video post")
+            if _is_expected_unavailable_error(combined_msg):
+                return (cleaned, False, "SKIP: Unavailable/blocked")
 
             if debug:
                 console.print(f"[red]Error downloading {cleaned}: {msg}[/red]")
-            return (cleaned, False, msg)
+            return (cleaned, False, f"SKIP: {reason}")
         return (cleaned, False, "SKIP: Unavailable/blocked (no info)")
 
     from concurrent.futures import ThreadPoolExecutor, as_completed
+
+    skip_reason_counts: Dict[str, int] = {}
 
     with ThreadPoolExecutor(max_workers=concurrent_downloads) as executor:
         futures = [executor.submit(process_url, url) for url in video_urls]
@@ -318,8 +347,11 @@ def download_videos(
             else:
                 if error_msg and error_msg.startswith("SKIP:"):
                     skipped_count += 1
+                    reason = error_msg.replace("SKIP:", "", 1).strip() or "Unknown"
+                    skip_reason_counts[reason] = skip_reason_counts.get(reason, 0) + 1
+                    short_id = extract_tiktok_video_id(url) or "unknown"
                     with progress_lock:
-                        console.print(f"[dim]{error_msg} -> {url}[/dim]")
+                        console.print(f"[dim]SKIP [{reason}] id={short_id}[/dim]")
                 else:
                     error_count += 1
                     if error_msg and "already been downloaded" not in error_msg.lower() and "abort" not in error_msg.lower():
@@ -342,6 +374,10 @@ def download_videos(
         table.add_row("Already On Disk", f"[green]{skipped_existing_on_disk}[/green]")
     if skipped_count > 0:
         table.add_row("Skipped During Download", f"[yellow]{skipped_count}[/yellow]")
+        top_reasons = sorted(skip_reason_counts.items(), key=lambda pair: pair[1], reverse=True)
+        reason_summary = ", ".join(f"{reason}: {count}" for reason, count in top_reasons[:3])
+        if reason_summary:
+            table.add_row("Top Skip Reasons", reason_summary)
     if error_count > 0:
         table.add_row("Errors", f"[red]{error_count}[/red]")
     console.print(table)

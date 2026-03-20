@@ -19,26 +19,6 @@ Archive TikTok profiles with Playwright for scanning and yt-dlp for downloads. T
 ```bash
 git clone https://github.com/fervidos/TikTok-Account-Downloader.git
 cd TikTok-Account-Downloader
-python -m venv .venv
-```
-
-Activate the virtual environment.
-
-Windows:
-
-```bash
-.venv\Scripts\activate
-```
-
-Linux or macOS:
-
-```bash
-source .venv/bin/activate
-```
-
-Install dependencies and Chromium for Playwright:
-
-```bash
 pip install -r requirements.txt
 python -m playwright install chromium
 ```
