@@ -94,12 +94,17 @@
         .video-container {
             position: relative;
             width: 100%;
-            height: 100vh;
+            height: 100dvh;
             scroll-snap-align: start;
             display: flex;
             justify-content: center;
             align-items: center;
             background-color: #111;
+            /* Mobile interaction fixes */
+            -webkit-user-select: none;
+            user-select: none;
+            -webkit-touch-callout: none;
+            touch-action: pan-y;
         }
 
         /* The actual video / image element */
@@ -109,6 +114,7 @@
             object-fit: contain;
             /* Contain to show full media, use cover for true tiktok style but cuts off edges */
             background-color: #000;
+            pointer-events: none; /* iOS Safari native action prevention */
         }
 
         /* Overlay UI Elements */
@@ -202,6 +208,31 @@
             /* Optical center */
         }
 
+        /* 2x Speed Indicator */
+        .speed-indicator {
+            position: absolute;
+            top: 80px;
+            left: 50%;
+            transform: translateX(-50%);
+            background: var(--glass-bg);
+            color: white;
+            padding: 8px 16px;
+            border-radius: 20px;
+            font-size: 1rem;
+            font-weight: bold;
+            opacity: 0;
+            transition: opacity 0.2s;
+            pointer-events: none;
+            backdrop-filter: blur(10px);
+            -webkit-backdrop-filter: blur(10px);
+            border: 1px solid var(--glass-border);
+            z-index: 10;
+        }
+
+        .speed-indicator.show {
+            opacity: 1;
+        }
+
         /* Play Button requirement for auto-play block on first load */
         #start-button {
             padding: 15px 40px;
@@ -232,7 +263,7 @@
             flex-direction: column;
             justify-content: center;
             align-items: center;
-            height: 100vh;
+            height: 100dvh;
             text-align: center;
             padding: 20px;
             color: rgba(255, 255, 255, 0.5);
@@ -346,7 +377,7 @@
         }
 
         .filtered-empty {
-            height: 100vh;
+            height: 100dvh;
             display: flex;
             flex-direction: column;
             justify-content: center;
@@ -360,6 +391,9 @@
             .viewer-controls {
                 top: 10px;
                 right: 10px;
+                /* Add subtle safe area padding for iOS */
+                padding-top: env(safe-area-inset-top);
+                padding-right: env(safe-area-inset-right);
             }
 
             .filter-panel {
@@ -368,6 +402,9 @@
                 max-width: calc(100vw - 20px);
                 overflow-x: auto;
                 scrollbar-width: none;
+                /* Add subtle safe area padding for iOS */
+                padding-top: env(safe-area-inset-top);
+                padding-left: env(safe-area-inset-left);
             }
 
             .filter-panel::-webkit-scrollbar {
@@ -383,8 +420,16 @@
             }
 
             .viewer-hint {
-                font-size: 0.72rem;
-                padding: 7px 10px;
+                display: none !important;
+            }
+
+            .media-element {
+                /* Fill the screen for native TikTok feel on mobile */
+                object-fit: cover;
+            }
+
+            .overlay-ui {
+                padding-bottom: calc(40px + env(safe-area-inset-bottom));
             }
         }
     </style>
@@ -732,9 +777,90 @@
                     playIndicator.className = 'play-pause-indicator';
                     playIndicator.innerHTML = '<div class="play-icon"></div>';
 
+                    // 2x Speed indicator
+                    const speedIndicator = document.createElement('div');
+                    speedIndicator.className = 'speed-indicator';
+                    speedIndicator.innerHTML = '2x Speed';
+
+                    let pressTimer = null;
+                    let isLongPress = false;
+
+                    const startSpeedUp = (e) => {
+                        if (!isVideo || mediaElement.paused) return;
+
+                        // Check if interaction is on the left 25% or right 25% of the screen
+                        let clientX = e.clientX;
+                        if (e.touches && e.touches.length > 0) {
+                            clientX = e.touches[0].clientX;
+                        } else if (e.type === 'mousedown' && e.button !== 0) {
+                            return; // only left click
+                        }
+                        
+                        const rect = container.getBoundingClientRect();
+                        const x = clientX - rect.left;
+                        const isSide = (x < rect.width * 0.25) || (x > rect.width * 0.75);
+
+                        if (!isSide) return;
+
+                        isLongPress = false;
+                        pressTimer = setTimeout(() => {
+                            isLongPress = true;
+                            
+                            // iOS Safari workaround for AVPlayer playbackRate buffer drop
+                            const current = mediaElement.currentTime;
+                            const wasPlaying = !mediaElement.paused;
+                            if (wasPlaying) mediaElement.pause();
+                            
+                            mediaElement.playbackRate = 2.0;
+                            mediaElement.currentTime = current;
+                            
+                            if (wasPlaying) mediaElement.play();
+                            
+                            speedIndicator.classList.add('show');
+                        }, 300); // 300ms hold to trigger 2x speed
+                    };
+
+                    const stopSpeedUp = () => {
+                        if (pressTimer) clearTimeout(pressTimer);
+                        if (isLongPress && isVideo) {
+                            // iOS Safari workaround for AVPlayer playbackRate buffer drop
+                            const current = mediaElement.currentTime;
+                            const wasPlaying = !mediaElement.paused;
+                            if (wasPlaying) mediaElement.pause();
+                            
+                            mediaElement.playbackRate = 1.0;
+                            mediaElement.currentTime = current;
+                            
+                            if (wasPlaying) mediaElement.play();
+                            
+                            speedIndicator.classList.remove('show');
+                            // Delay resetting isLongPress so the 'click' event doesn't register as a play/pause toggle
+                            setTimeout(() => { isLongPress = false; }, 50);
+                        }
+                    };
+
+                    // Interaction logic
+                    if (isVideo) {
+                        container.addEventListener('mousedown', startSpeedUp);
+                        container.addEventListener('touchstart', startSpeedUp, { passive: true });
+                        container.addEventListener('mouseup', stopSpeedUp);
+                        container.addEventListener('mouseleave', stopSpeedUp);
+                        container.addEventListener('touchend', stopSpeedUp);
+                        container.addEventListener('touchcancel', stopSpeedUp);
+                        
+                        // Prevent context menu on long press on mobile
+                        container.addEventListener('contextmenu', (e) => {
+                            if (isLongPress) e.preventDefault();
+                        });
+                    }
+
                     // Interaction logic (click to pause/play for videos only)
-                    container.addEventListener('click', () => {
+                    container.addEventListener('click', (e) => {
                         if (!isVideo) return;
+                        if (isLongPress) {
+                            e.preventDefault();
+                            return; // Ignore click triggered after a long press
+                        }
 
                         if (mediaElement.paused) {
                             mediaElement.play();
@@ -748,6 +874,7 @@
                     container.appendChild(mediaElement);
                     container.appendChild(overlay);
                     container.appendChild(playIndicator);
+                    if (isVideo) container.appendChild(speedIndicator);
                     feedContainer.appendChild(container);
                 });
             }
@@ -757,7 +884,7 @@
                 const options = {
                     root: feedContainer, // The scrolling container
                     rootMargin: '0px',
-                    threshold: 0.6 // Trigger when 60% of the video is visible
+                    threshold: [0, 0.6] // Trigger when 60% of the video is visible, and at 0% to reset
                 };
 
                 feedObserver = new IntersectionObserver((entries) => {
@@ -766,13 +893,13 @@
                         const playIndicator = entry.target.querySelector('.play-pause-indicator');
                         const entryIndex = Number(entry.target.dataset.index || '1');
 
-                        if (entry.isIntersecting) {
+                        if (entry.isIntersecting && entry.intersectionRatio >= 0.55) {
                             updateCounter(entryIndex);
                         }
 
                         if (!video) return;
 
-                        if (entry.isIntersecting) {
+                        if (entry.isIntersecting && entry.intersectionRatio >= 0.55) {
                             // Video is in view, play it
                             const playPromise = video.play();
                             if (playPromise !== undefined) {
@@ -784,9 +911,12 @@
                             }
                             playIndicator.classList.remove('show');
                         } else {
-                            // Video is out of view, pause it and reset to beginning
+                            // Video is out of view, pause it
                             video.pause();
-                            video.currentTime = 0;
+                            // Only reset to beginning if it's completely out of view, to avoid snapping resets on mobile wobbles
+                            if (entry.intersectionRatio <= 0.1) {
+                                video.currentTime = 0;
+                            }
                             playIndicator.classList.remove('show');
                         }
                     });

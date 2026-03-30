@@ -1,6 +1,6 @@
 @echo off
 REM TikTok Account Downloader Viewer - Start Script
-REM Runs the FastAPI application on 0.0.0.0:8080
+REM Runs the FastAPI application on 0.0.0.0:54321
 
 cd /d "%~dp0"
 
@@ -24,8 +24,8 @@ echo Installing dependencies...
 REM Start the server
 echo.
 echo Starting TikTok Account Downloader Viewer...
-echo Server will be available at: http://localhost:8080
+echo Server will be available at: http://localhost:54321
 echo.
-"%PY_CMD%" -m uvicorn viewer:app --host 0.0.0.0 --port 8080 --reload
+"%PY_CMD%" -m uvicorn viewer:app --host 0.0.0.0 --port 54321 --reload
 
 pause

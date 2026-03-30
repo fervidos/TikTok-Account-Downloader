@@ -103,7 +103,7 @@ Start the bundled viewer:
 python viewer.py
 ```
 
-Then open `http://127.0.0.1:8000`.
+Then open `http://127.0.0.1:54321`.
 
 To point the viewer at a different library, set one of these environment variables before starting it:
 

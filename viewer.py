@@ -1,7 +1,7 @@
 from pathlib import Path
 from typing import List
 import os
-
+import random
 from fastapi import FastAPI
 from fastapi import Query
 from fastapi.responses import HTMLResponse
@@ -46,10 +46,7 @@ def _collect_media_files() -> List[str]:
                 media_files.append(str(rel).replace("\\", "/"))
 
     try:
-        media_files.sort(
-            key=lambda path: os.path.getmtime(KEPT_DIR / path),
-            reverse=True,
-        )
+        random.shuffle(media_files)
     except Exception:
         pass
 
@@ -99,4 +96,4 @@ if __name__ == "__main__":
     # Requires: fastapi, uvicorn
     import uvicorn
 
-    uvicorn.run("viewer:app", host="127.0.0.1", port=8000, reload=True)
+    uvicorn.run("viewer:app", host="127.0.0.1", port=54321, reload=True)
